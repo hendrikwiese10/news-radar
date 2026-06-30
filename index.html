@@ -459,6 +459,26 @@
       color: var(--muted);
       border-color: var(--border);
     }
+
+    /* MOBILE */
+    @media (max-width: 768px) {
+      header { padding: 12px 16px; flex-direction: column; align-items: stretch; }
+      header h1 { font-size: 17px; text-align: center; }
+      .header-actions { justify-content: center; }
+      .header-actions .btn { flex: 1; min-width: 0; font-size: 11px; padding: 8px 10px; white-space: nowrap; }
+      .tabs { padding: 0 16px; overflow-x: auto; }
+      main { padding: 14px 12px; }
+      .stats { gap: 8px; }
+      .stat-card { min-width: 90px; padding: 10px 12px; flex: 1; }
+      .stat-card .value { font-size: 18px; }
+      .toolbar { flex-direction: column; align-items: stretch; }
+      .search-wrap { max-width: none; }
+      .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      table { min-width: 760px; }
+      .drawer { width: 100vw; }
+      .modal { width: calc(100vw - 24px); padding: 18px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -860,32 +880,18 @@ function deletePlayer(id) {
 
 async function fetchNews(player) {
   const query = player.searchTerm || [player.firstName, player.lastName].filter(Boolean).join(' ') + ' Fußball';
-  const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=de&gl=DE&ceid=DE:de`;
+  // Eigene Serverless-Funktion (api/news.py) statt unzuverlässiger Gratis-Proxies
+  const url = `/api/news?q=${encodeURIComponent(query)}`;
 
-  const proxies = [
-    `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`,
-  ];
-
-  for (const url of proxies) {
-    try {
-      const resp = await fetch(url);
-      if (!resp.ok) continue;
-      const text = await resp.text();
-      const xml = new DOMParser().parseFromString(text, 'text/xml');
-      const items = [...xml.querySelectorAll('item')];
-      if (!items.length) continue;
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      return items.map(i => ({
-        title: i.querySelector('title')?.textContent || '',
-        link: i.querySelector('link')?.textContent || '',
-        pubDate: i.querySelector('pubDate')?.textContent || '',
-        source: i.querySelector('source')?.textContent || 'Google News',
-        timestamp: new Date(i.querySelector('pubDate')?.textContent || 0).getTime(),
-      })).filter(a => a.timestamp >= sevenDaysAgo).slice(0, 15);
-    } catch { /* try next */ }
+  let resp;
+  try {
+    resp = await fetch(url);
+  } catch {
+    throw new Error('News-Dienst nicht erreichbar.');
   }
-  throw new Error('News konnten nicht geladen werden.');
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'Serverfehler');
+  return data.articles || [];
 }
 
 async function openNewsDrawer(id) {
