@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Jeder mit einem gültigen (anonymen) Login darf lesen & schreiben.
+    // Es gibt kein sichtbares Login im Frontend – die App meldet Besucher
+    // automatisch anonym an. Der Schutz besteht darin, dass nur wer den
+    // Link + die Firebase-Config kennt, überhaupt Zugriff bekommt.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

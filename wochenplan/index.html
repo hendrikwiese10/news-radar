@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FutureBallers Wochenplan</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #252836;
+    --surface3: #2e3244;
+    --border: #2e3147;
+    --accent: #4f8ef7;
+    --accent2: #6c63ff;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  header h1 span { color: var(--accent); }
+  .status-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); margin-right: 6px;
+  }
+  .status-dot.live { background: var(--green); }
+  .status-dot.off { background: var(--red); }
+  .conn { font-size: 12px; color: var(--muted); display: flex; align-items: center; }
+
+  .tabs {
+    display: flex; gap: 8px; padding: 12px 24px 0; max-width: 1500px; margin: 0 auto;
+  }
+  .tab-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    padding: 8px 16px; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 13px; font-weight: 600;
+    border-bottom: none;
+  }
+  .tab-btn.active { background: var(--surface); color: var(--text); border-color: var(--border); }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 20px 24px 60px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+    border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: none; transition: all .15s; background: var(--surface2); color: var(--text);
+  }
+  .btn:hover { background: var(--surface3); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #3b7de8; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-danger { color: var(--red); background: transparent; }
+  .btn-danger:hover { background: rgba(239,68,68,.12); }
+
+  /* WEEK NAV */
+  .week-nav {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .week-nav .range { font-size: 16px; font-weight: 700; }
+  .week-nav .controls { display: flex; gap: 8px; }
+
+  /* WEEK GRID */
+  .week-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(260px, 1fr);
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 12px;
+  }
+  .day-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 200px;
+  }
+  .day-col.today { border-color: var(--accent); }
+  .day-header { font-size: 13px; font-weight: 700; text-transform: capitalize; color: var(--text); }
+  .day-header .date { color: var(--muted); font-weight: 500; font-size: 12px; margin-left: 4px; }
+
+  .platform-block { display: flex; flex-direction: column; gap: 8px; }
+  .platform-title {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px;
+  }
+  .platform-title .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 5px; font-size: 10px; font-weight: 800; color: #fff;
+  }
+  .badge-x { background: #000; border: 1px solid #444; }
+  .badge-ig { background: linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4); }
+  .badge-tt { background: #000; border: 1px solid #444; color: #25f4ee; text-shadow: -1px 0 #fe2c55; }
+
+  .add-post-btn {
+    background: transparent; border: 1px dashed var(--border); color: var(--muted);
+    font-size: 11px; cursor: pointer; border-radius: 4px; padding: 2px 6px;
+  }
+  .add-post-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .post-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .post-card textarea {
+    width: 100%; background: var(--surface3); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 13px; padding: 6px 8px; resize: vertical; min-height: 44px;
+    font-family: inherit;
+  }
+  .post-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .post-row input, .post-row select {
+    background: var(--surface3); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 12px; padding: 5px 6px; font-family: inherit;
+  }
+  .post-row input[type="time"] { width: 90px; }
+  .post-row input.owner { flex: 1; min-width: 80px; }
+  .post-row select { flex: 1; min-width: 90px; }
+  .post-footer { display: flex; justify-content: flex-end; }
+
+  select.status-idee, .status-pill.status-idee { color: var(--muted); }
+  select.status-in-arbeit, .status-pill.status-in-arbeit { color: var(--accent2); }
+  select.status-fertig, .status-pill.status-fertig { color: var(--accent); }
+  select.status-gepostet, .status-pill.status-gepostet { color: var(--green); }
+
+  /* MONATSPLAN */
+  .monat-list { display: flex; flex-direction: column; gap: 8px; max-width: 700px; }
+  .monat-row {
+    display: flex; gap: 8px; align-items: center; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+  }
+  .monat-row input[type="text"] {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 14px; padding: 8px 10px; font-family: inherit;
+  }
+  .monat-row input[type="date"] {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 13px; padding: 8px 10px; font-family: inherit;
+  }
+
+  .hidden { display: none !important; }
+
+  .setup-banner {
+    background: #3a2a12; border: 1px solid var(--amber); color: #ffd699;
+    border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; font-size: 13px; line-height: 1.6;
+  }
+  .setup-banner code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 4px; }
+  .setup-banner a { color: var(--amber); }
+
+  .empty-hint { color: var(--muted); font-size: 12px; padding: 4px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>FutureBallers <span>Wochenplan</span></h1>
+  <div class="conn"><span id="connDot" class="status-dot"></span><span id="connText">Verbinde…</span></div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="woche">Woche</button>
+  <button class="tab-btn" data-tab="monat">Monatsplan</button>
+</div>
+
+<main>
+  <div id="setupBanner" class="setup-banner hidden">
+    ⚠️ Firebase ist noch nicht konfiguriert. Öffne <code>wochenplan/index.html</code> und trage im
+    <code>firebaseConfig</code>-Block (oben im Script) deine Firebase-Projektdaten ein.
+    Siehe <code>wochenplan/SETUP.md</code> für die Anleitung. Bis dahin wird hier nichts synchronisiert.
+  </div>
+
+  <section id="tab-woche">
+    <div class="week-nav">
+      <div class="controls">
+        <button class="btn btn-ghost btn-sm" id="prevWeek">◀ Vorherige</button>
+        <button class="btn btn-ghost btn-sm" id="todayBtn">Heute</button>
+        <button class="btn btn-ghost btn-sm" id="nextWeek">Nächste ▶</button>
+      </div>
+      <div class="range" id="weekRange">–</div>
+    </div>
+    <div class="week-grid" id="weekGrid"></div>
+  </section>
+
+  <section id="tab-monat" class="hidden">
+    <div style="margin-bottom:14px;">
+      <button class="btn btn-primary btn-sm" id="addMonatBtn">+ Format hinzufügen</button>
+    </div>
+    <div class="monat-list" id="monatList"></div>
+  </section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, where, orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+// ── Firebase-Projektdaten hier eintragen (siehe SETUP.md) ──────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDLTpV6QIs-gSD1J88x6C7padQmSUBbk58",
+  authDomain: "futureballers-wochenplan.firebaseapp.com",
+  projectId: "futureballers-wochenplan",
+  storageBucket: "futureballers-wochenplan.firebasestorage.app",
+  messagingSenderId: "78611263290",
+  appId: "1:78611263290:web:0b78905cd694827c64aa03"
+};
+// ─────────────────────────────────────────────────────────────────────────
+
+const PLATFORMS = [
+  { id: 'X', label: 'X', badgeClass: 'badge-x', badgeText: '𝕏' },
+  { id: 'Instagram', label: 'Instagram', badgeClass: 'badge-ig', badgeText: 'IG' },
+  { id: 'TikTok', label: 'TikTok', badgeClass: 'badge-tt', badgeText: '♪' },
+];
+const STATUSES = ['Idee', 'In Arbeit', 'Fertig', 'Gepostet'];
+
+const connDot = document.getElementById('connDot');
+const connText = document.getElementById('connText');
+const setupBanner = document.getElementById('setupBanner');
+
+let db = null, auth = null;
+let firebaseReady = false;
+
+if (firebaseConfig.apiKey === 'DEIN_API_KEY') {
+  setupBanner.classList.remove('hidden');
+  connDot.className = 'status-dot off';
+  connText.textContent = 'Nicht konfiguriert';
+} else {
+  try {
+    const app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+    signInAnonymously(auth)
+      .then(() => {
+        firebaseReady = true;
+        connDot.className = 'status-dot live';
+        connText.textContent = 'Live verbunden';
+        initWeekListener();
+        initMonatListener();
+      })
+      .catch((err) => {
+        connDot.className = 'status-dot off';
+        connText.textContent = 'Verbindung fehlgeschlagen';
+        console.error(err);
+      });
+  } catch (err) {
+    setupBanner.classList.remove('hidden');
+    setupBanner.textContent = '⚠️ Firebase-Konfiguration fehlerhaft: ' + err.message;
+    connDot.className = 'status-dot off';
+    connText.textContent = 'Fehler';
+  }
+}
+
+// ── Tabs ────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-woche').classList.toggle('hidden', btn.dataset.tab !== 'woche');
+    document.getElementById('tab-monat').classList.toggle('hidden', btn.dataset.tab !== 'monat');
+  });
+});
+
+// ── Datumshilfen ────────────────────────────────────────────────────────
+function fmt(d) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+let currentMonday = getMonday(new Date());
+const todayStr = fmt(new Date());
+
+function weekDays() {
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(currentMonday);
+    d.setDate(currentMonday.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+const weekGrid = document.getElementById('weekGrid');
+const weekRange = document.getElementById('weekRange');
+
+// caches: dayId+platform -> container element; postId -> {el, inputs}
+let dayPlatformContainers = {};
+let postElements = new Map();
+let unsubscribeWeek = null;
+
+function renderWeekSkeleton() {
+  weekGrid.innerHTML = '';
+  dayPlatformContainers = {};
+  postElements = new Map();
+
+  const days = weekDays();
+  const start = days[0], end = days[6];
+  weekRange.textContent = `${start.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} – ${end.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+
+  days.forEach(d => {
+    const dayId = fmt(d);
+    const col = document.createElement('div');
+    col.className = 'day-col' + (dayId === todayStr ? ' today' : '');
+
+    const header = document.createElement('div');
+    header.className = 'day-header';
+    header.innerHTML = `${d.toLocaleDateString('de-DE', { weekday: 'long' })}<span class="date">${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>`;
+    col.appendChild(header);
+
+    PLATFORMS.forEach(p => {
+      const block = document.createElement('div');
+      block.className = 'platform-block';
+
+      const title = document.createElement('div');
+      title.className = 'platform-title';
+      title.innerHTML = `<span><span class="badge ${p.badgeClass}">${p.badgeText}</span> ${p.label}</span>`;
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-post-btn';
+      addBtn.textContent = '+ Post';
+      addBtn.addEventListener('click', () => addPost(dayId, p.id));
+      title.appendChild(addBtn);
+      block.appendChild(title);
+
+      const list = document.createElement('div');
+      list.className = 'post-list';
+      list.dataset.day = dayId;
+      list.dataset.platform = p.id;
+      block.appendChild(list);
+
+      dayPlatformContainers[dayId + '|' + p.id] = list;
+      col.appendChild(block);
+    });
+
+    weekGrid.appendChild(col);
+  });
+}
+
+function statusClass(status) {
+  return 'status-' + status.toLowerCase().replace(/\s+/g, '-');
+}
+
+function buildPostCard(post) {
+  const card = document.createElement('div');
+  card.className = 'post-card';
+
+  const textarea = document.createElement('textarea');
+  textarea.placeholder = 'Content-Idee / Text…';
+  textarea.value = post.text || '';
+  let textTimer = null;
+  textarea.addEventListener('input', () => {
+    clearTimeout(textTimer);
+    textTimer = setTimeout(() => updatePost(post.id, { text: textarea.value }), 500);
+  });
+  card.appendChild(textarea);
+
+  const row1 = document.createElement('div');
+  row1.className = 'post-row';
+
+  const timeInput = document.createElement('input');
+  timeInput.type = 'time';
+  timeInput.value = post.time || '';
+  timeInput.addEventListener('change', () => updatePost(post.id, { time: timeInput.value }));
+  row1.appendChild(timeInput);
+
+  const statusSelect = document.createElement('select');
+  statusSelect.className = statusClass(post.status || 'Idee');
+  STATUSES.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    if ((post.status || 'Idee') === s) opt.selected = true;
+    statusSelect.appendChild(opt);
+  });
+  statusSelect.addEventListener('change', () => {
+    statusSelect.className = statusClass(statusSelect.value);
+    updatePost(post.id, { status: statusSelect.value });
+  });
+  row1.appendChild(statusSelect);
+
+  card.appendChild(row1);
+
+  const row2 = document.createElement('div');
+  row2.className = 'post-row';
+  const ownerInput = document.createElement('input');
+  ownerInput.className = 'owner';
+  ownerInput.type = 'text';
+  ownerInput.placeholder = 'Verantwortlich';
+  ownerInput.value = post.owner || '';
+  let ownerTimer = null;
+  ownerInput.addEventListener('input', () => {
+    clearTimeout(ownerTimer);
+    ownerTimer = setTimeout(() => updatePost(post.id, { owner: ownerInput.value }), 500);
+  });
+  row2.appendChild(ownerInput);
+  card.appendChild(row2);
+
+  const footer = document.createElement('div');
+  footer.className = 'post-footer';
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-danger btn-sm';
+  delBtn.textContent = 'Löschen';
+  delBtn.addEventListener('click', () => {
+    if (confirm('Diesen Post wirklich löschen?')) deletePost(post.id);
+  });
+  footer.appendChild(delBtn);
+  card.appendChild(footer);
+
+  return { root: card, textarea, timeInput, statusSelect, ownerInput };
+}
+
+function renderPosts(posts) {
+  const grouped = {};
+  posts.forEach(p => {
+    const key = p.day + '|' + p.platform;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+
+  const currentIds = new Set(posts.map(p => p.id));
+
+  // remove deleted
+  for (const [id, entry] of postElements) {
+    if (!currentIds.has(id)) {
+      entry.root.remove();
+      postElements.delete(id);
+    }
+  }
+
+  Object.keys(dayPlatformContainers).forEach(key => {
+    const container = dayPlatformContainers[key];
+    const list = (grouped[key] || []).slice().sort((a, b) => (a.ts || 0) - (b.ts || 0));
+
+    if (list.length === 0) {
+      if (!container.querySelector('.empty-hint')) {
+        container.innerHTML = '';
+        const hint = document.createElement('div');
+        hint.className = 'empty-hint';
+        hint.textContent = 'Noch nichts geplant.';
+        container.appendChild(hint);
+      }
+      return;
+    }
+    const existingHint = container.querySelector('.empty-hint');
+    if (existingHint) existingHint.remove();
+
+    list.forEach(post => {
+      let entry = postElements.get(post.id);
+      if (!entry) {
+        entry = buildPostCard(post);
+        postElements.set(post.id, entry);
+      }
+      // update fields only if not focused (avoid cursor jump for active typist)
+      if (document.activeElement !== entry.textarea && entry.textarea.value !== (post.text || '')) {
+        entry.textarea.value = post.text || '';
+      }
+      if (document.activeElement !== entry.timeInput && entry.timeInput.value !== (post.time || '')) {
+        entry.timeInput.value = post.time || '';
+      }
+      if (document.activeElement !== entry.ownerInput && entry.ownerInput.value !== (post.owner || '')) {
+        entry.ownerInput.value = post.owner || '';
+      }
+      if (document.activeElement !== entry.statusSelect && entry.statusSelect.value !== (post.status || 'Idee')) {
+        entry.statusSelect.value = post.status || 'Idee';
+        entry.statusSelect.className = statusClass(post.status || 'Idee');
+      }
+      if (entry.root.parentElement !== container) {
+        container.appendChild(entry.root);
+      }
+    });
+
+    // ensure DOM order matches list order
+    list.forEach(post => {
+      const entry = postElements.get(post.id);
+      container.appendChild(entry.root);
+    });
+  });
+}
+
+function initWeekListener() {
+  loadWeek();
+}
+
+function loadWeek() {
+  if (!firebaseReady) return;
+  renderWeekSkeleton();
+  if (unsubscribeWeek) unsubscribeWeek();
+  const weekId = fmt(currentMonday);
+  const q = query(collection(db, 'posts'), where('weekId', '==', weekId));
+  unsubscribeWeek = onSnapshot(q, (snap) => {
+    const posts = [];
+    snap.forEach(d => posts.push({ id: d.id, ...d.data() }));
+    renderPosts(posts);
+  }, (err) => console.error('Week listener error', err));
+}
+
+async function addPost(dayId, platform) {
+  if (!firebaseReady) { alert('Firebase ist noch nicht konfiguriert.'); return; }
+  await addDoc(collection(db, 'posts'), {
+    weekId: fmt(currentMonday),
+    day: dayId,
+    platform,
+    text: '',
+    status: 'Idee',
+    time: '',
+    owner: '',
+    ts: Date.now(),
+  });
+}
+async function updatePost(id, fields) {
+  if (!firebaseReady) return;
+  try { await updateDoc(doc(db, 'posts', id), fields); } catch (e) { console.error(e); }
+}
+async function deletePost(id) {
+  if (!firebaseReady) return;
+  try { await deleteDoc(doc(db, 'posts', id)); } catch (e) { console.error(e); }
+}
+
+document.getElementById('prevWeek').addEventListener('click', () => {
+  currentMonday.setDate(currentMonday.getDate() - 7);
+  loadWeek();
+});
+document.getElementById('nextWeek').addEventListener('click', () => {
+  currentMonday.setDate(currentMonday.getDate() + 7);
+  loadWeek();
+});
+document.getElementById('todayBtn').addEventListener('click', () => {
+  currentMonday = getMonday(new Date());
+  loadWeek();
+});
+
+// render empty skeleton immediately so page isn't blank pre-auth
+renderWeekSkeleton();
+
+// ── Monatsplan ─────────────────────────────────────────────────────────
+const monatList = document.getElementById('monatList');
+let monatElements = new Map();
+
+function buildMonatRow(entry) {
+  const row = document.createElement('div');
+  row.className = 'monat-row';
+
+  const themaInput = document.createElement('input');
+  themaInput.type = 'text';
+  themaInput.placeholder = 'Thema / Format…';
+  themaInput.value = entry.thema || '';
+  let themaTimer = null;
+  themaInput.addEventListener('input', () => {
+    clearTimeout(themaTimer);
+    themaTimer = setTimeout(() => updateMonat(entry.id, { thema: themaInput.value }), 500);
+  });
+  row.appendChild(themaInput);
+
+  const datumInput = document.createElement('input');
+  datumInput.type = 'date';
+  datumInput.value = entry.datum || '';
+  datumInput.addEventListener('change', () => updateMonat(entry.id, { datum: datumInput.value }));
+  row.appendChild(datumInput);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-danger btn-sm';
+  delBtn.textContent = 'Löschen';
+  delBtn.addEventListener('click', () => {
+    if (confirm('Diesen Eintrag wirklich löschen?')) deleteMonat(entry.id);
+  });
+  row.appendChild(delBtn);
+
+  return { root: row, themaInput, datumInput };
+}
+
+function renderMonat(entries) {
+  const currentIds = new Set(entries.map(e => e.id));
+  for (const [id, entry] of monatElements) {
+    if (!currentIds.has(id)) {
+      entry.root.remove();
+      monatElements.delete(id);
+    }
+  }
+
+  if (entries.length === 0) {
+    monatList.innerHTML = '<div class="empty-hint">Noch keine größeren Formate geplant.</div>';
+    return;
+  }
+  const hint = monatList.querySelector('.empty-hint');
+  if (hint) hint.remove();
+
+  const sorted = entries.slice().sort((a, b) => {
+    if (a.datum && b.datum) return a.datum.localeCompare(b.datum);
+    if (a.datum) return -1;
+    if (b.datum) return 1;
+    return (a.ts || 0) - (b.ts || 0);
+  });
+
+  sorted.forEach(e => {
+    let entry = monatElements.get(e.id);
+    if (!entry) {
+      entry = buildMonatRow(e);
+      monatElements.set(e.id, entry);
+    }
+    if (document.activeElement !== entry.themaInput && entry.themaInput.value !== (e.thema || '')) {
+      entry.themaInput.value = e.thema || '';
+    }
+    if (document.activeElement !== entry.datumInput && entry.datumInput.value !== (e.datum || '')) {
+      entry.datumInput.value = e.datum || '';
+    }
+    monatList.appendChild(entry.root);
+  });
+}
+
+let unsubscribeMonat = null;
+function initMonatListener() {
+  if (unsubscribeMonat) unsubscribeMonat();
+  unsubscribeMonat = onSnapshot(collection(db, 'monatsplan'), (snap) => {
+    const entries = [];
+    snap.forEach(d => entries.push({ id: d.id, ...d.data() }));
+    renderMonat(entries);
+  }, (err) => console.error('Monat listener error', err));
+}
+
+document.getElementById('addMonatBtn').addEventListener('click', async () => {
+  if (!firebaseReady) { alert('Firebase ist noch nicht konfiguriert.'); return; }
+  await addDoc(collection(db, 'monatsplan'), { thema: '', datum: '', ts: Date.now() });
+});
+async function updateMonat(id, fields) {
+  if (!firebaseReady) return;
+  try { await updateDoc(doc(db, 'monatsplan', id), fields); } catch (e) { console.error(e); }
+}
+async function deleteMonat(id) {
+  if (!firebaseReady) return;
+  try { await deleteDoc(doc(db, 'monatsplan', id)); } catch (e) { console.error(e); }
+}
+</script>
+</body>
+</html>
