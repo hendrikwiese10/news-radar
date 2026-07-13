@@ -202,24 +202,70 @@
     flex-direction: column;
   }
   .format-group-head {
-    padding: 10px 12px;
+    padding: 8px 8px 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .format-group-title-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #fff;
     font-size: 13px;
     font-weight: 700;
-    color: #fff;
+    padding: 4px 2px;
+    font-family: inherit;
+    min-width: 0;
   }
+  .format-group-title-input:focus { outline: 1px solid rgba(255,255,255,.5); border-radius: 4px; }
+  .format-group-del {
+    background: transparent; border: none; color: rgba(255,255,255,.85); cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+  }
+  .format-group-del:hover { background: rgba(0,0,0,.2); }
+
   .format-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; }
   .format-chip {
     background: var(--surface2);
     border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 12px;
-    color: var(--text);
-    cursor: grab;
-    user-select: none;
+    padding: 4px 6px 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
-  .format-chip:active { cursor: grabbing; }
   .format-chip.dragging { opacity: .4; }
+  .chip-handle { cursor: grab; color: var(--muted); font-size: 12px; user-select: none; }
+  .chip-handle:active { cursor: grabbing; }
+  .chip-input {
+    background: transparent; border: none; color: var(--text); font-size: 12px;
+    font-family: inherit; padding: 2px 2px;
+  }
+  .chip-input:focus { outline: none; }
+  .chip-del {
+    background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 13px;
+    padding: 0 2px; line-height: 1;
+  }
+  .chip-del:hover { color: var(--red); }
+
+  .format-add-item { margin: 0 12px 12px; align-self: flex-start; }
+
+  .add-bucket-tile {
+    border: 1px dashed var(--border);
+    background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 80px; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .add-bucket-tile:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* NOTIZEN */
+  .notes-section { margin-top: 32px; }
+  .notes-textarea {
+    width: 100%; min-height: 140px; margin-top: 10px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px; color: var(--text); font-size: 14px;
+    padding: 14px 16px; font-family: inherit; resize: vertical;
+  }
 </style>
 </head>
 <body>
@@ -264,12 +310,17 @@
     </div>
     <div class="monat-list" id="monatList"></div>
   </section>
+
+  <div class="notes-section">
+    <div class="format-lib-title">📝 Notizen</div>
+    <textarea id="notesArea" class="notes-textarea" placeholder="Freie Notizen für alle…"></textarea>
+  </div>
 </main>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, getDoc, setDoc,
   onSnapshot, query, where, orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -292,8 +343,9 @@ const PLATFORMS = [
 ];
 const STATUSES = ['Idee', 'In Arbeit', 'Fertig', 'Gepostet'];
 
-// Content-Buckets aus dem FutureBallers-Saisonplan
-const FORMAT_LIBRARY = [
+// Content-Buckets aus dem FutureBallers-Saisonplan (Startbefüllung, danach in Firestore editierbar)
+const BUCKET_COLORS = ['#1fa8a0', '#e0564f', '#e8912d', '#2e9e6b', '#3f7fd6', '#8e5cd9', '#d64f93'];
+const DEFAULT_FORMAT_BUCKETS = [
   { title: '🎯 Talent Spotlight', color: '#e0564f', items: ['Talent of the Day (Di)', 'Biggest Talents of [Verein] (Do, 2x/Monat)', 'Sleeper Picks: unbekannte Namen', 'Früh gepusht: Rückblick bei Durchbruch'] },
   { title: '🎬 Video & Highlights', color: '#e8912d', items: ['Player Compilation (Fr)', 'Weekend Highlights (Mi)', 'Spielszenen-Analyse (Do, 1x/Monat)', 'TikTok-Cuts aus IG-Material'] },
   { title: '📊 Data & Stats', color: '#2e9e6b', items: ['Top-Scorer je Jahrgang (Do, 1x/Monat)', 'Stats-Slide im Talent of the Day', 'Vergleich 2010 vs 2011 vs 2012'] },
@@ -325,6 +377,8 @@ if (firebaseConfig.apiKey === 'DEIN_API_KEY') {
         connText.textContent = 'Live verbunden';
         initWeekListener();
         initMonatListener();
+        initFormatLibraryListener();
+        initNotesListener();
       })
       .catch((err) => {
         connDot.className = 'status-dot off';
@@ -638,39 +692,219 @@ document.getElementById('todayBtn').addEventListener('click', () => {
 renderWeekSkeleton();
 
 // ── Format-Bibliothek ──────────────────────────────────────────────────
-function renderFormatLibrary() {
-  const cols = document.getElementById('formatLibCols');
-  cols.innerHTML = '';
-  FORMAT_LIBRARY.forEach(cat => {
-    const group = document.createElement('div');
-    group.className = 'format-group';
+const formatLibCols = document.getElementById('formatLibCols');
+let formatBucketElements = new Map(); // bucketId -> entry
+let unsubscribeFormats = null;
 
-    const head = document.createElement('div');
-    head.className = 'format-group-head';
-    head.style.background = cat.color;
-    head.textContent = cat.title;
-    group.appendChild(head);
+function buildFormatChip(entry) {
+  const root = document.createElement('div');
+  root.className = 'format-chip';
 
-    const chips = document.createElement('div');
-    chips.className = 'format-chips';
-    cat.items.forEach(formatText => {
-      const chip = document.createElement('div');
-      chip.className = 'format-chip';
-      chip.textContent = formatText;
-      chip.draggable = true;
-      chip.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'copy';
-        e.dataTransfer.setData('text/plain', formatText);
-        chip.classList.add('dragging');
-      });
-      chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
-      chips.appendChild(chip);
-    });
-    group.appendChild(chips);
-    cols.appendChild(group);
+  const handle = document.createElement('span');
+  handle.className = 'chip-handle';
+  handle.textContent = '⠿';
+  handle.title = 'Auf einen Tag ziehen';
+  handle.draggable = true;
+  handle.addEventListener('dragstart', (e) => {
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', input.value);
+    root.classList.add('dragging');
+  });
+  handle.addEventListener('dragend', () => root.classList.remove('dragging'));
+  root.appendChild(handle);
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'chip-input';
+  function autoSize() {
+    input.style.width = Math.max(50, input.value.length * 7 + 14) + 'px';
+  }
+  let itemTimer = null;
+  input.addEventListener('input', () => {
+    autoSize();
+    clearTimeout(itemTimer);
+    itemTimer = setTimeout(() => {
+      const idx = entry.itemEls.indexOf(chipEl);
+      const items = (entry.data.items || []).slice();
+      items[idx] = input.value;
+      updateFormatBucketDoc(entry.id, { items });
+    }, 500);
+  });
+  root.appendChild(input);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'chip-del';
+  delBtn.textContent = '×';
+  delBtn.title = 'Punkt löschen';
+  delBtn.addEventListener('click', () => {
+    const idx = entry.itemEls.indexOf(chipEl);
+    const items = (entry.data.items || []).slice();
+    items.splice(idx, 1);
+    updateFormatBucketDoc(entry.id, { items });
+  });
+  root.appendChild(delBtn);
+
+  const chipEl = { root, input, autoSize };
+  return chipEl;
+}
+
+function renderFormatItems(entry, items) {
+  while (entry.itemEls.length < items.length) {
+    entry.itemEls.push(buildFormatChip(entry));
+  }
+  while (entry.itemEls.length > items.length) {
+    const el = entry.itemEls.pop();
+    el.root.remove();
+  }
+  entry.itemEls.forEach((chipEl, idx) => {
+    if (document.activeElement !== chipEl.input && chipEl.input.value !== items[idx]) {
+      chipEl.input.value = items[idx];
+    }
+    chipEl.autoSize();
+    if (chipEl.root.parentElement !== entry.chips) entry.chips.appendChild(chipEl.root);
   });
 }
-renderFormatLibrary();
+
+function buildFormatBucket(bucketId) {
+  const entry = { id: bucketId, data: null, itemEls: [] };
+
+  const root = document.createElement('div');
+  root.className = 'format-group';
+
+  const head = document.createElement('div');
+  head.className = 'format-group-head';
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.className = 'format-group-title-input';
+  let titleTimer = null;
+  titleInput.addEventListener('input', () => {
+    clearTimeout(titleTimer);
+    titleTimer = setTimeout(() => updateFormatBucketDoc(entry.id, { title: titleInput.value }), 500);
+  });
+  head.appendChild(titleInput);
+
+  const delBucketBtn = document.createElement('button');
+  delBucketBtn.className = 'format-group-del';
+  delBucketBtn.textContent = '×';
+  delBucketBtn.title = 'Bucket löschen';
+  delBucketBtn.addEventListener('click', () => {
+    if (confirm('Diesen Bucket samt aller Punkte löschen?')) deleteFormatBucketDoc(entry.id);
+  });
+  head.appendChild(delBucketBtn);
+
+  root.appendChild(head);
+
+  const chips = document.createElement('div');
+  chips.className = 'format-chips';
+  root.appendChild(chips);
+
+  const addItemBtn = document.createElement('button');
+  addItemBtn.className = 'add-post-btn format-add-item';
+  addItemBtn.textContent = '+ Punkt';
+  addItemBtn.addEventListener('click', () => {
+    const items = (entry.data.items || []).concat(['Neuer Punkt']);
+    updateFormatBucketDoc(entry.id, { items });
+  });
+  root.appendChild(addItemBtn);
+
+  entry.root = root;
+  entry.head = head;
+  entry.titleInput = titleInput;
+  entry.chips = chips;
+  return entry;
+}
+
+function renderFormatLibrary(buckets) {
+  const currentIds = new Set(buckets.map(b => b.id));
+  for (const [id, entry] of formatBucketElements) {
+    if (!currentIds.has(id)) {
+      entry.root.remove();
+      formatBucketElements.delete(id);
+    }
+  }
+
+  buckets.forEach(bucket => {
+    let entry = formatBucketElements.get(bucket.id);
+    if (!entry) {
+      entry = buildFormatBucket(bucket.id);
+      formatBucketElements.set(bucket.id, entry);
+    }
+    entry.data = bucket;
+    entry.head.style.background = bucket.color || '#444';
+    if (document.activeElement !== entry.titleInput && entry.titleInput.value !== (bucket.title || '')) {
+      entry.titleInput.value = bucket.title || '';
+    }
+    renderFormatItems(entry, bucket.items || []);
+    formatLibCols.appendChild(entry.root);
+  });
+
+  let addTile = document.getElementById('addBucketTile');
+  if (!addTile) {
+    addTile = document.createElement('div');
+    addTile.id = 'addBucketTile';
+    addTile.className = 'format-group add-bucket-tile';
+    addTile.textContent = '+ Neuer Bucket';
+    addTile.addEventListener('click', addFormatBucket);
+  }
+  formatLibCols.appendChild(addTile);
+}
+
+async function updateFormatBucketDoc(id, fields) {
+  if (!firebaseReady) return;
+  try { await updateDoc(doc(db, 'formatBuckets', id), fields); } catch (e) { console.error(e); }
+}
+async function deleteFormatBucketDoc(id) {
+  if (!firebaseReady) return;
+  try { await deleteDoc(doc(db, 'formatBuckets', id)); } catch (e) { console.error(e); }
+}
+async function addFormatBucket() {
+  if (!firebaseReady) { alert('Firebase ist noch nicht konfiguriert.'); return; }
+  await addDoc(collection(db, 'formatBuckets'), {
+    title: 'Neuer Bucket',
+    color: BUCKET_COLORS[formatBucketElements.size % BUCKET_COLORS.length],
+    items: [],
+    order: Date.now(),
+  });
+}
+
+async function initFormatLibraryListener() {
+  const metaRef = doc(db, 'meta', 'formatsMeta');
+  const metaSnap = await getDoc(metaRef);
+  if (!metaSnap.exists()) {
+    await setDoc(metaRef, { seeded: true });
+    for (let i = 0; i < DEFAULT_FORMAT_BUCKETS.length; i++) {
+      const b = DEFAULT_FORMAT_BUCKETS[i];
+      await addDoc(collection(db, 'formatBuckets'), { title: b.title, color: b.color, items: b.items, order: i });
+    }
+  }
+  if (unsubscribeFormats) unsubscribeFormats();
+  const q = query(collection(db, 'formatBuckets'), orderBy('order'));
+  unsubscribeFormats = onSnapshot(q, (snap) => {
+    const buckets = [];
+    snap.forEach(d => buckets.push({ id: d.id, ...d.data() }));
+    renderFormatLibrary(buckets);
+  }, (err) => console.error('Format listener error', err));
+}
+
+// ── Notizen ────────────────────────────────────────────────────────────
+const notesArea = document.getElementById('notesArea');
+let notesTimer = null;
+notesArea.addEventListener('input', () => {
+  clearTimeout(notesTimer);
+  notesTimer = setTimeout(() => {
+    if (!firebaseReady) return;
+    setDoc(doc(db, 'meta', 'notes'), { text: notesArea.value }, { merge: true }).catch(e => console.error(e));
+  }, 500);
+});
+function initNotesListener() {
+  onSnapshot(doc(db, 'meta', 'notes'), (snap) => {
+    const text = snap.exists() ? (snap.data().text || '') : '';
+    if (document.activeElement !== notesArea && notesArea.value !== text) {
+      notesArea.value = text;
+    }
+  }, (err) => console.error('Notes listener error', err));
+}
 
 // ── Monatsplan ─────────────────────────────────────────────────────────
 const monatList = document.getElementById('monatList');
