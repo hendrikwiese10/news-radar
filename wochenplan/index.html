@@ -496,6 +496,23 @@ function renderWeekSkeleton() {
   });
 }
 
+// Reiht `desiredEls` in `container` nur um, wenn sich die Reihenfolge wirklich
+// geändert hat. Ein appendChild auf ein bereits vorhandenes Kind bewegt es im
+// DOM (remove+insert) und blurt dabei ein evtl. fokussiertes Feld darin –
+// deshalb hier nur anfassen, wenn nötig.
+function reorderIfNeeded(container, desiredEls) {
+  const current = Array.from(container.children);
+  let matches = current.length === desiredEls.length;
+  if (matches) {
+    for (let i = 0; i < desiredEls.length; i++) {
+      if (current[i] !== desiredEls[i]) { matches = false; break; }
+    }
+  }
+  if (!matches) {
+    desiredEls.forEach(el => container.appendChild(el));
+  }
+}
+
 function statusClass(status) {
   return 'status-' + status.toLowerCase().replace(/\s+/g, '-');
 }
@@ -628,11 +645,8 @@ function renderPosts(posts) {
       }
     });
 
-    // ensure DOM order matches list order
-    list.forEach(post => {
-      const entry = postElements.get(post.id);
-      container.appendChild(entry.root);
-    });
+    // Reihenfolge nur anpassen, wenn sie sich wirklich geändert hat (sonst Fokusverlust)
+    reorderIfNeeded(container, list.map(post => postElements.get(post.id).root));
   });
 }
 
@@ -836,7 +850,6 @@ function renderFormatLibrary(buckets) {
       entry.titleInput.value = bucket.title || '';
     }
     renderFormatItems(entry, bucket.items || []);
-    formatLibCols.appendChild(entry.root);
   });
 
   let addTile = document.getElementById('addBucketTile');
@@ -847,7 +860,9 @@ function renderFormatLibrary(buckets) {
     addTile.textContent = '+ Neuer Bucket';
     addTile.addEventListener('click', addFormatBucket);
   }
-  formatLibCols.appendChild(addTile);
+  const desired = buckets.map(b => formatBucketElements.get(b.id).root);
+  desired.push(addTile);
+  reorderIfNeeded(formatLibCols, desired);
 }
 
 async function updateFormatBucketDoc(id, fields) {
@@ -977,8 +992,9 @@ function renderMonat(entries) {
     if (document.activeElement !== entry.datumInput && entry.datumInput.value !== (e.datum || '')) {
       entry.datumInput.value = e.datum || '';
     }
-    monatList.appendChild(entry.root);
   });
+
+  reorderIfNeeded(monatList, sorted.map(e => monatElements.get(e.id).root));
 }
 
 let unsubscribeMonat = null;
