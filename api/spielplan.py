@@ -2,124 +2,74 @@ from http.server import BaseHTTPRequestHandler
 import urllib.request
 import urllib.parse
 import json
-import re
 from datetime import datetime, timezone
-from html.parser import HTMLParser
 
-UA = 'Mozilla/5.0 (compatible; NewsRadarSpielplan/1.0)'
+UA = 'Mozilla/5.0 (compatible; NewsRadarSpielplan/2.0)'
 
-
-class FixtureRowParser(HTMLParser):
-    """Parses a fussball.de Staffelspielplan page into (home, away, matchLink) rows.
-
-    Datum/Ergebnis sind auf dieser Seite bewusst über einen Obfuskations-Font
-    verschlüsselt (Anti-Scraping-Schutz von fussball.de) - wir lesen sie hier
-    nicht aus, sondern holen das Datum pro Spiel separat aus dem <title> der
-    Spiel-Detailseite, wo es fussball.de selbst als Klartext veröffentlicht.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.rows = []
-        self._in_tr = False
-        self._in_club_name = False
-        self._cur_row = None
-        self._text_buf = ''
-
-    def handle_starttag(self, tag, attrs):
-        attrs_d = dict(attrs)
-        if tag == 'tr':
-            self._in_tr = True
-            self._cur_row = {'clubs': [], 'link': None}
-        if tag == 'div' and self._in_tr and attrs_d.get('class') == 'club-name':
-            self._in_club_name = True
-            self._text_buf = ''
-        if tag == 'a' and self._in_tr and '/spiel/' in attrs_d.get('href', ''):
-            if self._cur_row is not None and self._cur_row['link'] is None:
-                self._cur_row['link'] = attrs_d['href']
-
-    def handle_endtag(self, tag):
-        if tag == 'div' and self._in_club_name:
-            self._in_club_name = False
-            if self._cur_row is not None:
-                self._cur_row['clubs'].append(self._text_buf.strip())
-        if tag == 'tr' and self._in_tr:
-            self._in_tr = False
-            if self._cur_row and len(self._cur_row['clubs']) == 2 and self._cur_row['link']:
-                self.rows.append(self._cur_row)
-            self._cur_row = None
-
-    def handle_data(self, data):
-        if self._in_club_name:
-            self._text_buf += data
+# 1. Bundesliga, 2. Bundesliga, DFB-Pokal - deckt alle Footique-Vereine ab.
+LEAGUES = ['bl1', 'bl2', 'dfb']
 
 
-def fetch(url, timeout=10):
+def current_season():
+    now = datetime.now(timezone.utc)
+    # Saison "2026" bei openligadb.de läuft von Sommer 2026 bis Sommer 2027.
+    return now.year if now.month >= 7 else now.year - 1
+
+
+def fetch_json(url):
     req = urllib.request.Request(url, headers={'User-Agent': UA})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read().decode('utf-8', 'ignore')
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read().decode('utf-8'))
 
 
-def get_match_date(match_url):
-    html = fetch(match_url)
-    m = re.search(r'<title>([^<]+)</title>', html)
-    if not m:
-        return None
-    dm = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', m.group(1))
-    if not dm:
-        return None
-    d, mo, y = dm.groups()
-    return f'{y}-{mo}-{d}'
+def get_club_matches(club):
+    club_l = club.lower()
+    season = current_season()
+    matches = []
+
+    for league in LEAGUES:
+        for s in (season, season + 1):
+            url = f'https://api.openligadb.de/getmatchdata/{league}/{s}'
+            try:
+                data = fetch_json(url)
+            except Exception:
+                continue
+            for m in data:
+                t1 = m.get('team1', {}).get('teamName', '')
+                t2 = m.get('team2', {}).get('teamName', '')
+                if club_l not in t1.lower() and club_l not in t2.lower():
+                    continue
+                is_home = club_l in t1.lower()
+                dt = m.get('matchDateTime') or ''
+                date, _, time = dt.partition('T')
+                matches.append({
+                    'date': date or None,
+                    'time': time[:5] if time else None,
+                    'competition': m.get('leagueName') or league,
+                    'home': t1,
+                    'away': t2,
+                    'isHome': is_home,
+                    'opponent': t2 if is_home else t1,
+                    'finished': bool(m.get('matchIsFinished')),
+                })
+
+    matches.sort(key=lambda x: (x['date'] or '', x['time'] or ''))
+    return matches
 
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         params = urllib.parse.parse_qs(parsed.query)
-        staffel_url = params.get('staffel', [''])[0]
         club = params.get('club', [''])[0]
 
-        if not staffel_url or not club:
-            self._json(400, {'error': 'Parameter staffel und club sind Pflicht'})
-            return
-
-        if not staffel_url.startswith('https://www.fussball.de/'):
-            self._json(400, {'error': 'Ungültige staffel-URL'})
+        if not club:
+            self._json(400, {'error': 'Parameter club fehlt'})
             return
 
         try:
-            html = fetch(staffel_url)
-            parser = FixtureRowParser()
-            parser.feed(html)
-
-            club_l = club.lower()
-            candidates = [
-                row for row in parser.rows
-                if club_l in row['clubs'][0].lower() or club_l in row['clubs'][1].lower()
-            ]
-
-            matches = []
-            for row in candidates[:12]:
-                home, away = row['clubs']
-                link = row['link']
-                if link and link.startswith('/'):
-                    link = 'https://www.fussball.de' + link
-                date = get_match_date(link) if link else None
-                matches.append({
-                    'date': date,
-                    'home': home,
-                    'away': away,
-                    'isHome': club_l in home.lower(),
-                    'opponent': away if club_l in home.lower() else home,
-                    'link': link,
-                })
-
-            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-            matches = [m for m in matches if m['date'] and m['date'] >= today]
-            matches.sort(key=lambda m: m['date'])
-
+            matches = get_club_matches(club)
             self._json(200, {'matches': matches})
-
         except Exception as e:
             self._json(500, {'error': str(e)})
 

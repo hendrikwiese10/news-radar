@@ -533,7 +533,9 @@
     }
     .spielplan-match:hover { background: rgba(108,99,255,.15); }
     .spielplan-match.away { border-left-color: var(--prio2); }
+    .spielplan-match.finished { opacity: .55; }
     .spielplan-match .m-player { font-weight: 700; }
+    .spielplan-match .m-time { color: var(--muted); font-weight: 500; margin-left: 4px; }
     .spielplan-match .m-info { color: var(--muted); font-weight: 500; }
     .spielplan-match .m-tag {
       display: inline-block;
@@ -770,11 +772,7 @@
       <input id="fSearch" placeholder="Wenn leer: wird automatisch generiert" />
     </div>
     <div class="form-group">
-      <label>Fussball.de Liga-Link (für Spielplan-Kalender)</label>
-      <input id="fFbStaffel" placeholder="z.B. https://www.fussball.de/spieltagsuebersicht/..." />
-    </div>
-    <div class="form-group">
-      <label>Fussball.de Vereinsname (exakt, für Spielplan-Kalender)</label>
+      <label>Vereinsname für Spielplan-Kalender (openligadb, exakt)</label>
       <input id="fFbClub" placeholder="z.B. FC Bayern München" />
     </div>
     <div class="modal-actions">
@@ -792,20 +790,15 @@
 
 const STORAGE_KEY = 'scouting_players_v3';
 
-// fussball.de-Staffeln (Saison 2026/27) der Footique-Talente, einmalig recherchiert.
-// Datum kommt NICHT aus der Listenansicht (die ist bei fussball.de per Obfuskations-Font
-// gegen Scraping geschützt), sondern aus dem Klartext-<title> der jeweiligen Spiel-Detailseite.
-const FB_U17_BERLIN = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-a--u17-dfb-nachwuchsliga-deutschland-b-junioren-bundesliga-b-junioren-saison2627-deutschland/-/staffel/031984MI6C00000OVS5489BUVV628VP4-G';
-const FB_U17_FRANKFURT = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-e--u17-dfb-nachwuchsliga-deutschland-b-junioren-bundesliga-b-junioren-saison2627-deutschland/-/staffel/031984MJAG00000OVS5489BUVV628VP4-G';
-const FB_U17_BAYERN = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-c--u17-dfb-nachwuchsliga-deutschland-b-junioren-bundesliga-b-junioren-saison2627-deutschland/-/staffel/031984MIOO00000OVS5489BUVV628VP4-G';
-const FB_U19_BAYERN = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-c--u19-dfb-nachwuchsliga-deutschland-a-junioren-bundesliga-a-junioren-saison2627-deutschland/-/staffel/031983L3L800000JVS5489BUVV628VP4-G';
-const FB_C_SUED = 'https://www.fussball.de/spieltagsuebersicht/c-junioren-regionalliga-sued-deutschland-c-junioren-regionalliga-sued-c-junioren-saison2627-deutschland/-/staffel/0311FDLG10000005VS5489BUVVARDA0V-G';
+// Fussball.de wurde ersetzt durch openligadb.de: freie API mit komplettem
+// Saisonspielplan (1./2. Bundesliga + DFB-Pokal) inkl. Uhrzeit, kein Scraping
+// nötig. "openligaClub" muss dem exakten Vereinsnamen bei openligadb entsprechen.
 
 const DEFAULT_PLAYERS = [
-  {"id":1000,"firstName":"Linus","lastName":"Güther","pos":"OM","birth":2010,"club":"Union Berlin","nation":"Deutschland","prio":1,"searchTerm":"Linus Güther","footique":true,"fussballStaffelUrl":FB_U17_BERLIN,"fussballClub":"1. FC Union Berlin","fussballCompetition":"U17 DFB-Nachwuchsliga"},
-  {"id":1001,"firstName":"Malte","lastName":"Brumm","pos":"IV","birth":2011,"club":"Hertha BSC","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BERLIN,"fussballClub":"Hertha BSC","fussballCompetition":"U17 DFB-Nachwuchsliga"},
+  {"id":1000,"firstName":"Linus","lastName":"Güther","pos":"OM","birth":2010,"club":"Union Berlin","nation":"Deutschland","prio":1,"searchTerm":"Linus Güther","footique":true,"openligaClub":"1. FC Union Berlin"},
+  {"id":1001,"firstName":"Malte","lastName":"Brumm","pos":"IV","birth":2011,"club":"Hertha BSC","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"openligaClub":"Hertha BSC"},
   {"id":1002,"firstName":"Joel","lastName":"Liebke","pos":"ZM","birth":2011,"club":"Hertha BSC","nation":"Deutschland","prio":2,"searchTerm":""},
-  {"id":1003,"firstName":"Luca","lastName":"Felix","pos":"LA","birth":2011,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_FRANKFURT,"fussballClub":"Eintracht Frankfurt","fussballCompetition":"U17 DFB-Nachwuchsliga"},
+  {"id":1003,"firstName":"Luca","lastName":"Felix","pos":"LA","birth":2011,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"Eintracht Frankfurt"},
   {"id":1004,"firstName":"Hamzath","lastName":"Mohamadou","pos":"LA","birth":2011,"club":"Borussia Dortmund","nation":"Deutschland","prio":2,"searchTerm":"Hamzath Mohamadou"},
   {"id":1005,"firstName":"Maximilian","lastName":"Mahr","pos":"OM","birth":2011,"club":"FC Bayern","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1006,"firstName":"Isuf","lastName":"Hiseni","pos":"LA","birth":2011,"club":"FC Bayern","nation":"Deutschland","prio":3,"searchTerm":""},
@@ -819,7 +812,7 @@ const DEFAULT_PLAYERS = [
   {"id":1014,"firstName":"Said","lastName":"Aalim Brkic","pos":"RA","birth":2010,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":3,"searchTerm":"Said Brkic"},
   {"id":1015,"firstName":"Vincent","lastName":"Clair","pos":"LV","birth":2010,"club":"RB Leipzig","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1016,"firstName":"Nino","lastName":"Debitsch","pos":"RV","birth":2010,"club":"1. FC Magdeburg","nation":"Deutschland","prio":3,"searchTerm":""},
-  {"id":1017,"firstName":"Ludwig","lastName":"Döring","pos":"LV","birth":2010,"club":"1. FC Nürnberg","nation":"1. FC Nürnberg","prio":2,"searchTerm":"Ludwig Döring","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"1. FC Nürnberg","fussballCompetition":"U17 DFB-Nachwuchsliga"},
+  {"id":1017,"firstName":"Ludwig","lastName":"Döring","pos":"LV","birth":2010,"club":"1. FC Nürnberg","nation":"1. FC Nürnberg","prio":2,"searchTerm":"Ludwig Döring","footique":true,"openligaClub":"1. FC Nürnberg"},
   {"id":1018,"firstName":"Ben","lastName":"Exner","pos":"IV","birth":2010,"club":"FC Augsburg","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1019,"firstName":"Benjamin","lastName":"Etienne Freiberger","pos":"RV","birth":2010,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1020,"firstName":"Max","lastName":"Gordon","pos":"IV","birth":2010,"club":"Bayer 04 Leverkusen","nation":"Deutschland","prio":3,"searchTerm":""},
@@ -835,13 +828,13 @@ const DEFAULT_PLAYERS = [
   {"id":1030,"firstName":"Beni","lastName":"Pöttschacher","pos":"LA","birth":2010,"club":"Mattersburg","nation":"Österreich","prio":3,"searchTerm":""},
   {"id":1031,"firstName":"Jakob","lastName":"Gauglhofer","pos":"OM","birth":2010,"club":"Liefering","nation":"Österreich","prio":3,"searchTerm":""},
   {"id":1032,"firstName":"River","lastName":"Gezer","pos":"IV","birth":2011,"club":"Ajax","nation":"Niederlande","prio":3,"searchTerm":""},
-  {"id":1782834116078,"firstName":"Thibault","lastName":"Maspimby","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"FC Bayern München","fussballCompetition":"U17 DFB-Nachwuchsliga"},
-  {"id":1782834188427,"firstName":"Emil","lastName":"Heuberger","pos":"ST","birth":2012,"club":"Borussia Dortmund","nation":"Deutschland","prio":1,"searchTerm":"","footique":true},
-  {"id":1782834229405,"firstName":"Aleks","lastName":"Rashkov","pos":"DM","birth":2012,"club":"VfB Stuttgart","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_C_SUED,"fussballClub":"VfB Stuttgart","fussballCompetition":"C-Junioren-Regionalliga Süd"},
-  {"id":1782834290783,"firstName":"Emmanuel","lastName":"Oriokason","pos":"ST","birth":2009,"club":"1. FC Nürnberg","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U19_BAYERN,"fussballClub":"1. FC Nürnberg","fussballCompetition":"U19 DFB-Nachwuchsliga"},
-  {"id":1782834381150,"firstName":"Tim","lastName":"Schreyer","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"FC Bayern München","fussballCompetition":"U17 DFB-Nachwuchsliga"},
-  {"id":1782834408843,"firstName":"Daniel","lastName":"Abade","pos":"ST","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"FC Bayern München","fussballCompetition":"U17 DFB-Nachwuchsliga"},
-  {"id":1782834440891,"firstName":"Nnamdi","lastName":"Collins","pos":"IV","birth":2004,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":1,"searchTerm":"","footique":true},
+  {"id":1782834116078,"firstName":"Thibault","lastName":"Maspimby","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"FC Bayern München"},
+  {"id":1782834188427,"firstName":"Emil","lastName":"Heuberger","pos":"ST","birth":2012,"club":"Borussia Dortmund","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"openligaClub":"Borussia Dortmund"},
+  {"id":1782834229405,"firstName":"Aleks","lastName":"Rashkov","pos":"DM","birth":2012,"club":"VfB Stuttgart","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"openligaClub":"VfB Stuttgart"},
+  {"id":1782834290783,"firstName":"Emmanuel","lastName":"Oriokason","pos":"ST","birth":2009,"club":"1. FC Nürnberg","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"1. FC Nürnberg"},
+  {"id":1782834381150,"firstName":"Tim","lastName":"Schreyer","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"FC Bayern München"},
+  {"id":1782834408843,"firstName":"Daniel","lastName":"Abade","pos":"ST","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"FC Bayern München"},
+  {"id":1782834440891,"firstName":"Nnamdi","lastName":"Collins","pos":"IV","birth":2004,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"openligaClub":"Eintracht Frankfurt"},
 ];
 
 function loadPlayers() {
@@ -1198,7 +1191,7 @@ async function fetchPlayerMatches(player, force) {
     const cached = getSpielplanCache(cacheKey);
     if (cached) return cached;
   }
-  const url = `/api/spielplan?staffel=${encodeURIComponent(player.fussballStaffelUrl)}&club=${encodeURIComponent(player.fussballClub)}`;
+  const url = `/api/spielplan?club=${encodeURIComponent(player.openligaClub)}`;
   const resp = await fetch(url);
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.error || 'Serverfehler');
@@ -1217,13 +1210,13 @@ function shiftMonth(delta) {
 let spielplanMatchesByPlayerId = {};
 
 async function loadSpielplan(force) {
-  const mapped = players.filter(p => p.footique && p.fussballStaffelUrl && p.fussballClub);
-  const unmapped = players.filter(p => p.footique && (!p.fussballStaffelUrl || !p.fussballClub));
+  const mapped = players.filter(p => p.footique && p.openligaClub);
+  const unmapped = players.filter(p => p.footique && !p.openligaClub);
 
   document.getElementById('spielplanGrid').innerHTML = `
     <div class="spielplan-loading">
       <div class="spinner" style="margin:0 auto 12px"></div>
-      Spielpläne werden von fussball.de geladen…
+      Spielpläne werden geladen…
     </div>`;
 
   const results = await Promise.allSettled(mapped.map(async p => {
@@ -1247,7 +1240,7 @@ function renderSpielplanUnmapped(unmapped) {
   if (unmapped.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = `
     <h3>⚠️ Noch keinem Team zugeordnet</h3>
-    <p>Für diese Footique-Spieler fehlt der fussball.de-Liga-Link. Über "✏️ Bearbeiten" im Tab "Footique-Spieler" könnt ihr den Link + Vereinsnamen ergänzen (Felder "Fussball.de Liga-Link" / "Fussball.de Verein").</p>
+    <p>Für diese Footique-Spieler fehlt der Vereinsname für den Spielplan-Kalender. Über "✏️ Bearbeiten" im Tab "Footique-Spieler" könnt ihr ihn ergänzen (Feld "Vereinsname für Spielplan-Kalender").</p>
     ${unmapped.map(p => `
       <div class="spielplan-unmapped-row">
         <span class="u-name">${escHtml(p.firstName + ' ' + p.lastName)}</span>
@@ -1295,10 +1288,10 @@ function renderSpielplanCalendar() {
     html += `<div class="spielplan-day ${inMonth ? '' : 'other-month'} ${dateStr === todayStr ? 'is-today' : ''}">
       <div class="spielplan-daynum">${cellDate.getDate()}</div>
       ${dayMatches.map(({ player, match }) => `
-        <a class="spielplan-match ${match.isHome ? '' : 'away'}" href="${match.link || '#'}" target="_blank" rel="noopener" title="${escHtml(player.fussballCompetition || '')}">
-          <span><span class="m-tag ${match.isHome ? 'home' : 'away'}">${match.isHome ? 'Heim' : 'Ausw.'}</span><span class="m-player">${escHtml(player.firstName + ' ' + player.lastName.slice(0,1) + '.')}</span></span>
+        <div class="spielplan-match ${match.isHome ? '' : 'away'} ${match.finished ? 'finished' : ''}" title="${escHtml(match.competition || '')}${match.time ? ' · ' + match.time + ' Uhr' : ''}">
+          <span><span class="m-tag ${match.isHome ? 'home' : 'away'}">${match.isHome ? 'Heim' : 'Ausw.'}</span><span class="m-player">${escHtml(player.firstName + ' ' + player.lastName.slice(0,1) + '.')}</span>${match.time ? `<span class="m-time">${match.time}</span>` : ''}</span>
           <span class="m-info">vs ${escHtml(match.opponent)}</span>
-        </a>
+        </div>
       `).join('')}
     </div>`;
   }
@@ -1376,7 +1369,7 @@ async function loadBulkNews(prio) {
 function openAddModal() {
   editId = null;
   document.getElementById('modalTitle').textContent = 'Spieler hinzufügen';
-  ['fFirstName','fLastName','fClub','fNation','fSearch','fFbStaffel','fFbClub'].forEach(id => document.getElementById(id).value = '');
+  ['fFirstName','fLastName','fClub','fNation','fSearch','fFbClub'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fPos').value = '';
   document.getElementById('fPrio').value = '1';
   document.getElementById('fBirth').value = '';
@@ -1397,8 +1390,7 @@ function openEditModal(id) {
   document.getElementById('fNation').value = p.nation || '';
   document.getElementById('fPrio').value = p.prio;
   document.getElementById('fSearch').value = p.searchTerm || '';
-  document.getElementById('fFbStaffel').value = p.fussballStaffelUrl || '';
-  document.getElementById('fFbClub').value = p.fussballClub || '';
+  document.getElementById('fFbClub').value = p.openligaClub || '';
   document.getElementById('modalOverlay').classList.add('open');
 }
 
@@ -1420,8 +1412,7 @@ function savePlayer() {
     nation:     document.getElementById('fNation').value.trim(),
     prio:       parseInt(document.getElementById('fPrio').value),
     searchTerm: document.getElementById('fSearch').value.trim(),
-    fussballStaffelUrl: document.getElementById('fFbStaffel').value.trim(),
-    fussballClub:       document.getElementById('fFbClub').value.trim(),
+    openligaClub: document.getElementById('fFbClub').value.trim(),
   };
 
   if (editId) {

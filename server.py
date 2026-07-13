@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api'))
-from spielplan import FixtureRowParser, fetch as spielplan_fetch, get_match_date
+from spielplan import get_club_matches
 
 PORT = 3456
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -36,50 +36,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
 
-        # ── Spielplan-Proxy für fussball.de ──────────────────────────────────
+        # ── Spielplan-Proxy (openligadb.de) ──────────────────────────────────
         if parsed.path in ('/spielplan', '/api/spielplan'):
             params = urllib.parse.parse_qs(parsed.query)
-            staffel_url = params.get('staffel', [''])[0]
             club = params.get('club', [''])[0]
 
-            if not staffel_url or not club:
-                self._json(400, {'error': 'Parameter staffel und club sind Pflicht'})
-                return
-            if not staffel_url.startswith('https://www.fussball.de/'):
-                self._json(400, {'error': 'Ungültige staffel-URL'})
+            if not club:
+                self._json(400, {'error': 'Parameter club fehlt'})
                 return
 
             try:
-                html = spielplan_fetch(staffel_url)
-                fp = FixtureRowParser()
-                fp.feed(html)
-
-                club_l = club.lower()
-                candidates = [
-                    row for row in fp.rows
-                    if club_l in row['clubs'][0].lower() or club_l in row['clubs'][1].lower()
-                ]
-
-                matches = []
-                for row in candidates[:12]:
-                    home, away = row['clubs']
-                    link = row['link']
-                    if link and link.startswith('/'):
-                        link = 'https://www.fussball.de' + link
-                    date = get_match_date(link) if link else None
-                    matches.append({
-                        'date': date,
-                        'home': home,
-                        'away': away,
-                        'isHome': club_l in home.lower(),
-                        'opponent': away if club_l in home.lower() else home,
-                        'link': link,
-                    })
-
-                today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-                matches = [m for m in matches if m['date'] and m['date'] >= today]
-                matches.sort(key=lambda m: m['date'])
-
+                matches = get_club_matches(club)
                 self._json(200, {'matches': matches})
             except Exception as e:
                 self._json(500, {'error': str(e)})
