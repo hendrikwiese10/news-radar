@@ -460,6 +460,137 @@
       border-color: var(--border);
     }
 
+    /* SPIELPLAN / KALENDER */
+    .spielplan-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .spielplan-month-nav {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .spielplan-month-nav h2 {
+      font-size: 18px;
+      font-weight: 700;
+      min-width: 200px;
+      text-align: center;
+      letter-spacing: .3px;
+    }
+    .spielplan-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      padding: 1px;
+    }
+    .spielplan-weekday {
+      background: var(--surface2);
+      padding: 8px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .spielplan-day {
+      background: var(--surface);
+      min-height: 92px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .spielplan-day.other-month { opacity: .35; }
+    .spielplan-day.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
+    .spielplan-daynum {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .spielplan-day.is-today .spielplan-daynum { color: var(--accent); }
+    .spielplan-match {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      background: var(--surface2);
+      border-left: 3px solid var(--accent2);
+      font-size: 10.5px;
+      line-height: 1.35;
+      text-decoration: none;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .spielplan-match:hover { background: rgba(108,99,255,.15); }
+    .spielplan-match.away { border-left-color: var(--prio2); }
+    .spielplan-match .m-player { font-weight: 700; }
+    .spielplan-match .m-info { color: var(--muted); font-weight: 500; }
+    .spielplan-match .m-tag {
+      display: inline-block;
+      font-size: 8.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      padding: 1px 5px;
+      border-radius: 8px;
+      margin-right: 3px;
+    }
+    .spielplan-match .m-tag.home { background: rgba(16,185,129,.18); color: var(--green); }
+    .spielplan-match .m-tag.away { background: rgba(99,102,241,.18); color: var(--prio2); }
+    .spielplan-loading, .spielplan-empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 0;
+      color: var(--muted);
+      background: var(--surface);
+    }
+    .spielplan-unmapped {
+      margin-top: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .spielplan-unmapped h3 {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .spielplan-unmapped p {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .spielplan-unmapped-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 13px;
+      border-top: 1px solid var(--border);
+    }
+    .spielplan-unmapped-row:first-of-type { border-top: none; }
+    .spielplan-unmapped-row .u-name { font-weight: 600; min-width: 160px; }
+    .spielplan-unmapped-row .u-club { color: var(--muted); font-size: 12px; flex: 1; }
+
+    @media (max-width: 768px) {
+      .spielplan-day { min-height: 64px; }
+      .spielplan-match { font-size: 9.5px; padding: 3px 4px; }
+      .spielplan-match .m-info { display: none; }
+      .spielplan-weekday { font-size: 9.5px; padding: 5px 2px; }
+      .spielplan-unmapped-row { flex-wrap: wrap; }
+    }
+
     /* MOBILE */
     @media (max-width: 768px) {
       header { padding: 12px 16px; flex-direction: column; align-items: stretch; }
@@ -498,59 +629,76 @@
 <nav class="tabs">
   <button class="tab active" id="tab-all" onclick="switchTab('all')">Alle Spieler</button>
   <button class="tab" id="tab-footique" onclick="switchTab('footique')">⚡ Footique-Spieler</button>
+  <button class="tab" id="tab-spielplan" onclick="switchTab('spielplan')">📅 Spielplan</button>
 </nav>
 
 <main>
-  <!-- STATS -->
-  <div class="stats" id="stats"></div>
+  <div id="playerListView">
+    <!-- STATS -->
+    <div class="stats" id="stats"></div>
 
-  <!-- TOOLBAR -->
-  <div class="toolbar">
-    <div class="search-wrap">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-      <input class="search-input" id="searchInput" placeholder="Spieler suchen…" oninput="renderTable()" />
+    <!-- TOOLBAR -->
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input class="search-input" id="searchInput" placeholder="Spieler suchen…" oninput="renderTable()" />
+      </div>
+      <select class="filter-select" id="prioFilter" onchange="renderTable()">
+        <option value="">Alle Prioritäten</option>
+        <option value="1">⭐ Prio 1</option>
+        <option value="2">🔵 Prio 2</option>
+        <option value="3">⚫ Prio 3</option>
+      </select>
+      <select class="filter-select" id="posFilter" onchange="renderTable()">
+        <option value="">Alle Positionen</option>
+        <option value="TW">TW</option>
+        <option value="IV">IV</option>
+        <option value="LV">LV</option>
+        <option value="RV">RV</option>
+        <option value="DM">DM</option>
+        <option value="ZM">ZM</option>
+        <option value="OM">OM</option>
+        <option value="LA">LA</option>
+        <option value="RA">RA</option>
+        <option value="ST">ST</option>
+      </select>
     </div>
-    <select class="filter-select" id="prioFilter" onchange="renderTable()">
-      <option value="">Alle Prioritäten</option>
-      <option value="1">⭐ Prio 1</option>
-      <option value="2">🔵 Prio 2</option>
-      <option value="3">⚫ Prio 3</option>
-    </select>
-    <select class="filter-select" id="posFilter" onchange="renderTable()">
-      <option value="">Alle Positionen</option>
-      <option value="TW">TW</option>
-      <option value="IV">IV</option>
-      <option value="LV">LV</option>
-      <option value="RV">RV</option>
-      <option value="DM">DM</option>
-      <option value="ZM">ZM</option>
-      <option value="OM">OM</option>
-      <option value="LA">LA</option>
-      <option value="RA">RA</option>
-      <option value="ST">ST</option>
-    </select>
+
+    <!-- TABLE -->
+    <div class="table-wrap">
+      <table id="playerTable">
+        <thead>
+          <tr>
+            <th onclick="sortBy('name')">Spieler <span id="sort-name"></span></th>
+            <th onclick="sortBy('pos')">Pos <span id="sort-pos"></span></th>
+            <th onclick="sortBy('club')">Verein <span id="sort-club"></span></th>
+            <th onclick="sortBy('birth')">Jg. <span id="sort-birth"></span></th>
+            <th onclick="sortBy('nation')">Nation <span id="sort-nation"></span></th>
+            <th onclick="sortBy('prio')">Priorität <span id="sort-prio"></span></th>
+            <th>Footique</th>
+            <th>News</th>
+            <th>Aktionen</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
   </div>
 
-  <!-- TABLE -->
-  <div class="table-wrap">
-    <table id="playerTable">
-      <thead>
-        <tr>
-          <th onclick="sortBy('name')">Spieler <span id="sort-name"></span></th>
-          <th onclick="sortBy('pos')">Pos <span id="sort-pos"></span></th>
-          <th onclick="sortBy('club')">Verein <span id="sort-club"></span></th>
-          <th onclick="sortBy('birth')">Jg. <span id="sort-birth"></span></th>
-          <th onclick="sortBy('nation')">Nation <span id="sort-nation"></span></th>
-          <th onclick="sortBy('prio')">Priorität <span id="sort-prio"></span></th>
-          <th>Footique</th>
-          <th>News</th>
-          <th>Aktionen</th>
-        </tr>
-      </thead>
-      <tbody id="tableBody"></tbody>
-    </table>
+  <!-- SPIELPLAN (CAREER-MODE KALENDER) -->
+  <div id="spielplanView" style="display:none">
+    <div class="spielplan-header">
+      <div class="spielplan-month-nav">
+        <button class="btn btn-ghost btn-icon" onclick="shiftMonth(-1)">‹</button>
+        <h2 id="spielplanMonthLabel">—</h2>
+        <button class="btn btn-ghost btn-icon" onclick="shiftMonth(1)">›</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="loadSpielplan(true)">↻ Aktualisieren</button>
+    </div>
+    <div id="spielplanGrid" class="spielplan-grid"></div>
+    <div id="spielplanUnmapped" class="spielplan-unmapped"></div>
   </div>
 </main>
 
@@ -621,6 +769,14 @@
       <label>Suchbegriff für News (optional)</label>
       <input id="fSearch" placeholder="Wenn leer: wird automatisch generiert" />
     </div>
+    <div class="form-group">
+      <label>Fussball.de Liga-Link (für Spielplan-Kalender)</label>
+      <input id="fFbStaffel" placeholder="z.B. https://www.fussball.de/spieltagsuebersicht/..." />
+    </div>
+    <div class="form-group">
+      <label>Fussball.de Vereinsname (exakt, für Spielplan-Kalender)</label>
+      <input id="fFbClub" placeholder="z.B. FC Bayern München" />
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="savePlayer()">Speichern</button>
@@ -636,11 +792,20 @@
 
 const STORAGE_KEY = 'scouting_players_v3';
 
+// fussball.de-Staffeln (Saison 2026/27) der Footique-Talente, einmalig recherchiert.
+// Datum kommt NICHT aus der Listenansicht (die ist bei fussball.de per Obfuskations-Font
+// gegen Scraping geschützt), sondern aus dem Klartext-<title> der jeweiligen Spiel-Detailseite.
+const FB_U17_BERLIN = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-a--u17-dfb-nachwuchsliga-deutschland-b-junioren-bundesliga-b-junioren-saison2627-deutschland/-/staffel/031984MI6C00000OVS5489BUVV628VP4-G';
+const FB_U17_FRANKFURT = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-e--u17-dfb-nachwuchsliga-deutschland-b-junioren-bundesliga-b-junioren-saison2627-deutschland/-/staffel/031984MJAG00000OVS5489BUVV628VP4-G';
+const FB_U17_BAYERN = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-c--u17-dfb-nachwuchsliga-deutschland-b-junioren-bundesliga-b-junioren-saison2627-deutschland/-/staffel/031984MIOO00000OVS5489BUVV628VP4-G';
+const FB_U19_BAYERN = 'https://www.fussball.de/spieltagsuebersicht/vorrunde-gruppe-c--u19-dfb-nachwuchsliga-deutschland-a-junioren-bundesliga-a-junioren-saison2627-deutschland/-/staffel/031983L3L800000JVS5489BUVV628VP4-G';
+const FB_C_SUED = 'https://www.fussball.de/spieltagsuebersicht/c-junioren-regionalliga-sued-deutschland-c-junioren-regionalliga-sued-c-junioren-saison2627-deutschland/-/staffel/0311FDLG10000005VS5489BUVVARDA0V-G';
+
 const DEFAULT_PLAYERS = [
-  {"id":1000,"firstName":"Linus","lastName":"Güther","pos":"OM","birth":2010,"club":"Union Berlin","nation":"Deutschland","prio":1,"searchTerm":"Linus Güther","footique":true},
-  {"id":1001,"firstName":"Malte","lastName":"Brumm","pos":"IV","birth":2011,"club":"Hertha BSC","nation":"Deutschland","prio":1,"searchTerm":"","footique":true},
+  {"id":1000,"firstName":"Linus","lastName":"Güther","pos":"OM","birth":2010,"club":"Union Berlin","nation":"Deutschland","prio":1,"searchTerm":"Linus Güther","footique":true,"fussballStaffelUrl":FB_U17_BERLIN,"fussballClub":"1. FC Union Berlin","fussballCompetition":"U17 DFB-Nachwuchsliga"},
+  {"id":1001,"firstName":"Malte","lastName":"Brumm","pos":"IV","birth":2011,"club":"Hertha BSC","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BERLIN,"fussballClub":"Hertha BSC","fussballCompetition":"U17 DFB-Nachwuchsliga"},
   {"id":1002,"firstName":"Joel","lastName":"Liebke","pos":"ZM","birth":2011,"club":"Hertha BSC","nation":"Deutschland","prio":2,"searchTerm":""},
-  {"id":1003,"firstName":"Luca","lastName":"Felix","pos":"LA","birth":2011,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":2,"searchTerm":"","footique":true},
+  {"id":1003,"firstName":"Luca","lastName":"Felix","pos":"LA","birth":2011,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_FRANKFURT,"fussballClub":"Eintracht Frankfurt","fussballCompetition":"U17 DFB-Nachwuchsliga"},
   {"id":1004,"firstName":"Hamzath","lastName":"Mohamadou","pos":"LA","birth":2011,"club":"Borussia Dortmund","nation":"Deutschland","prio":2,"searchTerm":"Hamzath Mohamadou"},
   {"id":1005,"firstName":"Maximilian","lastName":"Mahr","pos":"OM","birth":2011,"club":"FC Bayern","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1006,"firstName":"Isuf","lastName":"Hiseni","pos":"LA","birth":2011,"club":"FC Bayern","nation":"Deutschland","prio":3,"searchTerm":""},
@@ -654,7 +819,7 @@ const DEFAULT_PLAYERS = [
   {"id":1014,"firstName":"Said","lastName":"Aalim Brkic","pos":"RA","birth":2010,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":3,"searchTerm":"Said Brkic"},
   {"id":1015,"firstName":"Vincent","lastName":"Clair","pos":"LV","birth":2010,"club":"RB Leipzig","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1016,"firstName":"Nino","lastName":"Debitsch","pos":"RV","birth":2010,"club":"1. FC Magdeburg","nation":"Deutschland","prio":3,"searchTerm":""},
-  {"id":1017,"firstName":"Ludwig","lastName":"Döring","pos":"LV","birth":2010,"club":"1. FC Nürnberg","nation":"1. FC Nürnberg","prio":2,"searchTerm":"Ludwig Döring","footique":true},
+  {"id":1017,"firstName":"Ludwig","lastName":"Döring","pos":"LV","birth":2010,"club":"1. FC Nürnberg","nation":"1. FC Nürnberg","prio":2,"searchTerm":"Ludwig Döring","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"1. FC Nürnberg","fussballCompetition":"U17 DFB-Nachwuchsliga"},
   {"id":1018,"firstName":"Ben","lastName":"Exner","pos":"IV","birth":2010,"club":"FC Augsburg","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1019,"firstName":"Benjamin","lastName":"Etienne Freiberger","pos":"RV","birth":2010,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":3,"searchTerm":""},
   {"id":1020,"firstName":"Max","lastName":"Gordon","pos":"IV","birth":2010,"club":"Bayer 04 Leverkusen","nation":"Deutschland","prio":3,"searchTerm":""},
@@ -670,12 +835,12 @@ const DEFAULT_PLAYERS = [
   {"id":1030,"firstName":"Beni","lastName":"Pöttschacher","pos":"LA","birth":2010,"club":"Mattersburg","nation":"Österreich","prio":3,"searchTerm":""},
   {"id":1031,"firstName":"Jakob","lastName":"Gauglhofer","pos":"OM","birth":2010,"club":"Liefering","nation":"Österreich","prio":3,"searchTerm":""},
   {"id":1032,"firstName":"River","lastName":"Gezer","pos":"IV","birth":2011,"club":"Ajax","nation":"Niederlande","prio":3,"searchTerm":""},
-  {"id":1782834116078,"firstName":"Thibault","lastName":"Maspimby","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true},
+  {"id":1782834116078,"firstName":"Thibault","lastName":"Maspimby","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"FC Bayern München","fussballCompetition":"U17 DFB-Nachwuchsliga"},
   {"id":1782834188427,"firstName":"Emil","lastName":"Heuberger","pos":"ST","birth":2012,"club":"Borussia Dortmund","nation":"Deutschland","prio":1,"searchTerm":"","footique":true},
-  {"id":1782834229405,"firstName":"Aleks","lastName":"Rashkov","pos":"DM","birth":2012,"club":"VfB Stuttgart","nation":"Deutschland","prio":1,"searchTerm":"","footique":true},
-  {"id":1782834290783,"firstName":"Emmanuel","lastName":"Oriokason","pos":"ST","birth":2009,"club":"1. FC Nürnberg","nation":"Deutschland","prio":2,"searchTerm":"","footique":true},
-  {"id":1782834381150,"firstName":"Tim","lastName":"Schreyer","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true},
-  {"id":1782834408843,"firstName":"Daniel","lastName":"Abade","pos":"ST","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true},
+  {"id":1782834229405,"firstName":"Aleks","lastName":"Rashkov","pos":"DM","birth":2012,"club":"VfB Stuttgart","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_C_SUED,"fussballClub":"VfB Stuttgart","fussballCompetition":"C-Junioren-Regionalliga Süd"},
+  {"id":1782834290783,"firstName":"Emmanuel","lastName":"Oriokason","pos":"ST","birth":2009,"club":"1. FC Nürnberg","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U19_BAYERN,"fussballClub":"1. FC Nürnberg","fussballCompetition":"U19 DFB-Nachwuchsliga"},
+  {"id":1782834381150,"firstName":"Tim","lastName":"Schreyer","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"FC Bayern München","fussballCompetition":"U17 DFB-Nachwuchsliga"},
+  {"id":1782834408843,"firstName":"Daniel","lastName":"Abade","pos":"ST","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"fussballStaffelUrl":FB_U17_BAYERN,"fussballClub":"FC Bayern München","fussballCompetition":"U17 DFB-Nachwuchsliga"},
   {"id":1782834440891,"firstName":"Nnamdi","lastName":"Collins","pos":"IV","birth":2004,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":1,"searchTerm":"","footique":true},
 ];
 
@@ -739,8 +904,17 @@ function switchTab(tab) {
   activeTab = tab;
   document.getElementById('tab-all').classList.toggle('active', tab === 'all');
   document.getElementById('tab-footique').classList.toggle('active', tab === 'footique');
-  renderStats();
-  renderTable();
+  document.getElementById('tab-spielplan').classList.toggle('active', tab === 'spielplan');
+
+  document.getElementById('playerListView').style.display = tab === 'spielplan' ? 'none' : '';
+  document.getElementById('spielplanView').style.display = tab === 'spielplan' ? '' : 'none';
+
+  if (tab === 'spielplan') {
+    loadSpielplan();
+  } else {
+    renderStats();
+    renderTable();
+  }
 }
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
@@ -981,6 +1155,163 @@ function toggleFootique(id) {
   showToast(p.footique ? `${p.firstName} zu Footique hinzugefügt` : `${p.firstName} aus Footique entfernt`, 'success');
 }
 
+// ─── SPIELPLAN (FIFA-KARRIEREMODUS-KALENDER) ─────────────────────────────────
+
+const SPIELPLAN_CACHE_KEY = 'spielplan_cache';
+const SPIELPLAN_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 Stunden
+
+const today = new Date();
+let calendarYear = today.getFullYear();
+let calendarMonth = today.getMonth(); // 0-basiert
+
+const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const WEEKDAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function getSpielplanCache(key) {
+  try {
+    const raw = localStorage.getItem(SPIELPLAN_CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    const entry = cache[key];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > SPIELPLAN_CACHE_TTL) return null;
+    return entry.matches;
+  } catch { return null; }
+}
+
+function setSpielplanCache(key, matches) {
+  try {
+    const raw = localStorage.getItem(SPIELPLAN_CACHE_KEY);
+    const cache = raw ? JSON.parse(raw) : {};
+    cache[key] = { ts: Date.now(), matches };
+    localStorage.setItem(SPIELPLAN_CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
+async function fetchPlayerMatches(player, force) {
+  const cacheKey = String(player.id);
+  if (!force) {
+    const cached = getSpielplanCache(cacheKey);
+    if (cached) return cached;
+  }
+  const url = `/api/spielplan?staffel=${encodeURIComponent(player.fussballStaffelUrl)}&club=${encodeURIComponent(player.fussballClub)}`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'Serverfehler');
+  const matches = data.matches || [];
+  setSpielplanCache(cacheKey, matches);
+  return matches;
+}
+
+function shiftMonth(delta) {
+  calendarMonth += delta;
+  if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+  if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+  renderSpielplanCalendar();
+}
+
+let spielplanMatchesByPlayerId = {};
+
+async function loadSpielplan(force) {
+  const mapped = players.filter(p => p.footique && p.fussballStaffelUrl && p.fussballClub);
+  const unmapped = players.filter(p => p.footique && (!p.fussballStaffelUrl || !p.fussballClub));
+
+  document.getElementById('spielplanGrid').innerHTML = `
+    <div class="spielplan-loading">
+      <div class="spinner" style="margin:0 auto 12px"></div>
+      Spielpläne werden von fussball.de geladen…
+    </div>`;
+
+  const results = await Promise.allSettled(mapped.map(async p => {
+    const matches = await fetchPlayerMatches(p, force);
+    return { player: p, matches };
+  }));
+
+  spielplanMatchesByPlayerId = {};
+  results.forEach(r => {
+    if (r.status === 'fulfilled') {
+      spielplanMatchesByPlayerId[r.value.player.id] = r.value.matches;
+    }
+  });
+
+  renderSpielplanCalendar();
+  renderSpielplanUnmapped(unmapped);
+}
+
+function renderSpielplanUnmapped(unmapped) {
+  const el = document.getElementById('spielplanUnmapped');
+  if (unmapped.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <h3>⚠️ Noch keinem Team zugeordnet</h3>
+    <p>Für diese Footique-Spieler fehlt der fussball.de-Liga-Link. Über "✏️ Bearbeiten" im Tab "Footique-Spieler" könnt ihr den Link + Vereinsnamen ergänzen (Felder "Fussball.de Liga-Link" / "Fussball.de Verein").</p>
+    ${unmapped.map(p => `
+      <div class="spielplan-unmapped-row">
+        <span class="u-name">${escHtml(p.firstName + ' ' + p.lastName)}</span>
+        <span class="u-club">${escHtml(p.club || '—')} · Jg. ${p.birth || '—'}</span>
+      </div>
+    `).join('')}
+  `;
+}
+
+function renderSpielplanCalendar() {
+  document.getElementById('spielplanMonthLabel').textContent = `${MONTH_NAMES[calendarMonth]} ${calendarYear}`;
+
+  // Alle Matches im aktuellen Monat einsammeln, gruppiert nach Tag (YYYY-MM-DD)
+  const matchesByDay = {};
+  for (const [playerId, matches] of Object.entries(spielplanMatchesByPlayerId)) {
+    const player = players.find(p => p.id == playerId);
+    if (!player) continue;
+    for (const m of matches) {
+      if (!m.date) continue;
+      const [y, mo] = m.date.split('-').map(Number);
+      if (y !== calendarYear || (mo - 1) !== calendarMonth) continue;
+      if (!matchesByDay[m.date]) matchesByDay[m.date] = [];
+      matchesByDay[m.date].push({ player, match: m });
+    }
+  }
+
+  const firstOfMonth = new Date(calendarYear, calendarMonth, 1);
+  // Montag = 0 ... Sonntag = 6
+  const startOffset = (firstOfMonth.getDay() + 6) % 7;
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const gridStart = new Date(calendarYear, calendarMonth, 1 - startOffset);
+
+  const todayStr = localDateStr(new Date());
+  const cellCount = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+  let html = WEEKDAYS.map(d => `<div class="spielplan-weekday">${d}</div>`).join('');
+
+  for (let i = 0; i < cellCount; i++) {
+    const cellDate = new Date(gridStart);
+    cellDate.setDate(gridStart.getDate() + i);
+    const dateStr = localDateStr(cellDate);
+    const inMonth = cellDate.getMonth() === calendarMonth;
+    const dayMatches = matchesByDay[dateStr] || [];
+
+    html += `<div class="spielplan-day ${inMonth ? '' : 'other-month'} ${dateStr === todayStr ? 'is-today' : ''}">
+      <div class="spielplan-daynum">${cellDate.getDate()}</div>
+      ${dayMatches.map(({ player, match }) => `
+        <a class="spielplan-match ${match.isHome ? '' : 'away'}" href="${match.link || '#'}" target="_blank" rel="noopener" title="${escHtml(player.fussballCompetition || '')}">
+          <span><span class="m-tag ${match.isHome ? 'home' : 'away'}">${match.isHome ? 'Heim' : 'Ausw.'}</span><span class="m-player">${escHtml(player.firstName + ' ' + player.lastName.slice(0,1) + '.')}</span></span>
+          <span class="m-info">vs ${escHtml(match.opponent)}</span>
+        </a>
+      `).join('')}
+    </div>`;
+  }
+
+  const grid = document.getElementById('spielplanGrid');
+  grid.innerHTML = html;
+
+  const totalMatches = Object.values(matchesByDay).reduce((sum, arr) => sum + arr.length, 0);
+  if (totalMatches === 0 && Object.keys(spielplanMatchesByPlayerId).length > 0) {
+    grid.innerHTML += `<div class="spielplan-empty">Keine Spiele der Footique-Talente in diesem Monat gefunden.</div>`;
+  }
+}
+
 // ─── BULK NEWS ───────────────────────────────────────────────────────────────
 
 async function loadBulkNews(prio) {
@@ -1045,7 +1376,7 @@ async function loadBulkNews(prio) {
 function openAddModal() {
   editId = null;
   document.getElementById('modalTitle').textContent = 'Spieler hinzufügen';
-  ['fFirstName','fLastName','fClub','fNation','fSearch'].forEach(id => document.getElementById(id).value = '');
+  ['fFirstName','fLastName','fClub','fNation','fSearch','fFbStaffel','fFbClub'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fPos').value = '';
   document.getElementById('fPrio').value = '1';
   document.getElementById('fBirth').value = '';
@@ -1066,6 +1397,8 @@ function openEditModal(id) {
   document.getElementById('fNation').value = p.nation || '';
   document.getElementById('fPrio').value = p.prio;
   document.getElementById('fSearch').value = p.searchTerm || '';
+  document.getElementById('fFbStaffel').value = p.fussballStaffelUrl || '';
+  document.getElementById('fFbClub').value = p.fussballClub || '';
   document.getElementById('modalOverlay').classList.add('open');
 }
 
@@ -1087,12 +1420,23 @@ function savePlayer() {
     nation:     document.getElementById('fNation').value.trim(),
     prio:       parseInt(document.getElementById('fPrio').value),
     searchTerm: document.getElementById('fSearch').value.trim(),
+    fussballStaffelUrl: document.getElementById('fFbStaffel').value.trim(),
+    fussballClub:       document.getElementById('fFbClub').value.trim(),
   };
 
   if (editId) {
     const idx = players.findIndex(x => x.id === editId);
     players[idx] = { ...players[idx], ...data };
     delete newsCache[editId]; // Invalidate cache
+    delete spielplanMatchesByPlayerId[editId]; // Invalidate Spielplan-Cache
+    try {
+      const raw = localStorage.getItem(SPIELPLAN_CACHE_KEY);
+      if (raw) {
+        const cache = JSON.parse(raw);
+        delete cache[String(editId)];
+        localStorage.setItem(SPIELPLAN_CACHE_KEY, JSON.stringify(cache));
+      }
+    } catch {}
     showToast('Spieler aktualisiert', 'success');
   } else {
     const newId = Date.now();
