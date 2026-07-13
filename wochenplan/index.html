@@ -180,6 +180,46 @@
   .setup-banner a { color: var(--amber); }
 
   .empty-hint { color: var(--muted); font-size: 12px; padding: 4px 0; }
+
+  .post-list.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+  /* FORMAT-BIBLIOTHEK */
+  .format-library { margin-top: 24px; }
+  .format-lib-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .format-lib-hint { font-weight: 500; color: var(--muted); font-size: 12px; }
+  .format-lib-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .format-group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .format-group-head {
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .format-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; }
+  .format-chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: grab;
+    user-select: none;
+  }
+  .format-chip:active { cursor: grabbing; }
+  .format-chip.dragging { opacity: .4; }
 </style>
 </head>
 <body>
@@ -211,6 +251,11 @@
       <div class="range" id="weekRange">–</div>
     </div>
     <div class="week-grid" id="weekGrid"></div>
+
+    <div class="format-library">
+      <div class="format-lib-title">Format-Bibliothek <span class="format-lib-hint">– auf einen Tag ziehen, um einen Post daraus anzulegen</span></div>
+      <div class="format-lib-cols" id="formatLibCols"></div>
+    </div>
   </section>
 
   <section id="tab-monat" class="hidden">
@@ -246,6 +291,16 @@ const PLATFORMS = [
   { id: 'TikTok', label: 'TikTok', badgeClass: 'badge-tt', badgeText: '♪' },
 ];
 const STATUSES = ['Idee', 'In Arbeit', 'Fertig', 'Gepostet'];
+
+// Content-Buckets aus dem FutureBallers-Saisonplan
+const FORMAT_LIBRARY = [
+  { title: '🎯 Talent Spotlight', color: '#e0564f', items: ['Talent of the Day (Di)', 'Biggest Talents of [Verein] (Do, 2x/Monat)', 'Sleeper Picks: unbekannte Namen', 'Früh gepusht: Rückblick bei Durchbruch'] },
+  { title: '🎬 Video & Highlights', color: '#e8912d', items: ['Player Compilation (Fr)', 'Weekend Highlights (Mi)', 'Spielszenen-Analyse (Do, 1x/Monat)', 'TikTok-Cuts aus IG-Material'] },
+  { title: '📊 Data & Stats', color: '#2e9e6b', items: ['Top-Scorer je Jahrgang (Do, 1x/Monat)', 'Stats-Slide im Talent of the Day', 'Vergleich 2010 vs 2011 vs 2012'] },
+  { title: '⚡ Reaktiv & Matchday', color: '#3f7fd6', items: ['Besonderes Ergebnis (Mo, Fallback: Highlights)', 'Matchday Preview (Sa)', 'Transfers & besondere Wechsel', 'Profi-Debüts', 'Nationalelf-Nominierungen'] },
+  { title: '💬 Meinung & Community', color: '#8e5cd9', items: ['Hot Takes & Analyse (Twitter, täglich)', 'Polls & Nominations', 'Q&A-Sessions'] },
+  { title: '📅 Saison-Meilensteine', color: '#d64f93', items: ['Saisonstart-Preview (Aug)', 'Winter-Awards (Dez/Jan)', 'Team of the Season (Mai/Jun)', 'WC-2034-XI Update (2x pro Saison)'] },
+];
 
 const connDot = document.getElementById('connDot');
 const connText = document.getElementById('connText');
@@ -365,6 +420,18 @@ function renderWeekSkeleton() {
       list.className = 'post-list';
       list.dataset.day = dayId;
       list.dataset.platform = p.id;
+      list.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        list.classList.add('drop-target');
+      });
+      list.addEventListener('dragleave', () => list.classList.remove('drop-target'));
+      list.addEventListener('drop', (e) => {
+        e.preventDefault();
+        list.classList.remove('drop-target');
+        const formatText = e.dataTransfer.getData('text/plain');
+        if (formatText) addPost(dayId, p.id, formatText);
+      });
       block.appendChild(list);
 
       dayPlatformContainers[dayId + '|' + p.id] = list;
@@ -532,13 +599,13 @@ function loadWeek() {
   }, (err) => console.error('Week listener error', err));
 }
 
-async function addPost(dayId, platform) {
+async function addPost(dayId, platform, initialText = '') {
   if (!firebaseReady) { alert('Firebase ist noch nicht konfiguriert.'); return; }
   await addDoc(collection(db, 'posts'), {
     weekId: fmt(currentMonday),
     day: dayId,
     platform,
-    text: '',
+    text: initialText,
     status: 'Idee',
     time: '',
     owner: '',
@@ -569,6 +636,41 @@ document.getElementById('todayBtn').addEventListener('click', () => {
 
 // render empty skeleton immediately so page isn't blank pre-auth
 renderWeekSkeleton();
+
+// ── Format-Bibliothek ──────────────────────────────────────────────────
+function renderFormatLibrary() {
+  const cols = document.getElementById('formatLibCols');
+  cols.innerHTML = '';
+  FORMAT_LIBRARY.forEach(cat => {
+    const group = document.createElement('div');
+    group.className = 'format-group';
+
+    const head = document.createElement('div');
+    head.className = 'format-group-head';
+    head.style.background = cat.color;
+    head.textContent = cat.title;
+    group.appendChild(head);
+
+    const chips = document.createElement('div');
+    chips.className = 'format-chips';
+    cat.items.forEach(formatText => {
+      const chip = document.createElement('div');
+      chip.className = 'format-chip';
+      chip.textContent = formatText;
+      chip.draggable = true;
+      chip.addEventListener('dragstart', (e) => {
+        e.dataTransfer.effectAllowed = 'copy';
+        e.dataTransfer.setData('text/plain', formatText);
+        chip.classList.add('dragging');
+      });
+      chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+      chips.appendChild(chip);
+    });
+    group.appendChild(chips);
+    cols.appendChild(group);
+  });
+}
+renderFormatLibrary();
 
 // ── Monatsplan ─────────────────────────────────────────────────────────
 const monatList = document.getElementById('monatList');
