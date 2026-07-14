@@ -1233,6 +1233,37 @@ function setSpielplanCache(key, matches) {
   } catch {}
 }
 
+// Testspiele/Freundschaftsspiele stehen nicht bei openligadb (nur offizielle
+// Wettbewerbe) - deshalb hier von Hand nachgetragen. Format je Verein: Datum,
+// Uhrzeit, Heim-/Gastverein, ob der eigene Verein Heimrecht hat.
+const FRIENDLY_MATCHES = {
+  '1. FC Union Berlin': [
+    { date: '2026-07-17', time: '19:00', home: 'FC Winterthur', away: '1. FC Union Berlin', isHome: false },
+    { date: '2026-07-18', time: '16:00', home: 'FC Aarau', away: '1. FC Union Berlin', isHome: false },
+    { date: '2026-08-01', time: '14:00', home: 'Dynamo Dresden', away: '1. FC Union Berlin', isHome: false },
+    { date: '2026-08-02', time: '14:00', home: '1. FC Union Berlin', away: 'Cagliari Calcio', isHome: true },
+    { date: '2026-08-15', time: '15:30', home: '1. FC Union Berlin', away: 'Ipswich Town', isHome: true },
+  ],
+  'Eintracht Frankfurt': [
+    { date: '2026-07-18', time: '17:00', home: 'FC Gießen', away: 'Eintracht Frankfurt', isHome: false },
+    { date: '2026-08-01', time: '17:00', home: 'Waldhof Mannheim', away: 'Eintracht Frankfurt', isHome: false },
+    { date: '2026-08-15', time: '16:00', home: 'FC Brentford', away: 'Eintracht Frankfurt', isHome: false },
+  ],
+};
+
+function getFriendlyMatches(club) {
+  return (FRIENDLY_MATCHES[club] || []).map(m => ({
+    date: m.date,
+    time: m.time,
+    competition: 'Testspiel',
+    home: m.home,
+    away: m.away,
+    isHome: m.isHome,
+    opponent: m.isHome ? m.away : m.home,
+    finished: false,
+  }));
+}
+
 async function fetchPlayerMatches(player, force) {
   const cacheKey = String(player.id);
   if (!force) {
@@ -1243,7 +1274,8 @@ async function fetchPlayerMatches(player, force) {
   const resp = await fetch(url);
   const data = await resp.json();
   if (!resp.ok) throw new Error(data.error || 'Serverfehler');
-  const matches = data.matches || [];
+  const matches = [...(data.matches || []), ...getFriendlyMatches(player.openligaClub)];
+  matches.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
   setSpielplanCache(cacheKey, matches);
   return matches;
 }
