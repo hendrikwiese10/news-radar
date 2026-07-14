@@ -1160,6 +1160,13 @@ let calendarMonth = today.getMonth(); // 0-basiert
 const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const WEEKDAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 
+// Vorerst nur diese Spieler im Spielplan-Kalender (Testphase). Weitere IDs
+// hier ergänzen, sobald der Rest der Footique-Spieler freigegeben wird.
+const SPIELPLAN_ENABLED_IDS = [
+  1000,             // Linus Güther (Union Berlin)
+  1782834440891,    // Nnamdi Collins (Eintracht Frankfurt)
+];
+
 function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
@@ -1210,8 +1217,9 @@ function shiftMonth(delta) {
 let spielplanMatchesByPlayerId = {};
 
 async function loadSpielplan(force) {
-  const mapped = players.filter(p => p.footique && p.openligaClub);
-  const unmapped = players.filter(p => p.footique && !p.openligaClub);
+  const enabled = players.filter(p => p.footique && SPIELPLAN_ENABLED_IDS.includes(p.id));
+  const mapped = enabled.filter(p => p.openligaClub);
+  const unmapped = enabled.filter(p => !p.openligaClub);
 
   document.getElementById('spielplanGrid').innerHTML = `
     <div class="spielplan-loading">
