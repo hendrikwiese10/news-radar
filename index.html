@@ -840,17 +840,35 @@ const DEFAULT_PLAYERS = [
 function loadPlayers() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
-    const stored = JSON.parse(raw);
+    let stored = JSON.parse(raw);
     // Migrate: replace old demo players (IDs 1–6) with real player list
     const isOldDemo = stored.every(p => p.id >= 1 && p.id <= 6);
     if (isOldDemo) {
       savePlayers(DEFAULT_PLAYERS);
       return DEFAULT_PLAYERS;
     }
-    return stored;
+    // Migrate: bereits gespeicherte Spieler bekommen neu hinzugekommene Felder
+    // (z.B. openligaClub) aus DEFAULT_PLAYERS nachgetragen, ohne eigene Änderungen zu verlieren.
+    const migrated = migratePlayers(stored);
+    if (migrated.changed) savePlayers(migrated.players);
+    return migrated.players;
   }
   savePlayers(DEFAULT_PLAYERS);
   return DEFAULT_PLAYERS;
+}
+
+function migratePlayers(stored) {
+  const defaultsById = Object.fromEntries(DEFAULT_PLAYERS.map(p => [p.id, p]));
+  let changed = false;
+  const players = stored.map(p => {
+    const def = defaultsById[p.id];
+    if (def && def.openligaClub && !p.openligaClub) {
+      changed = true;
+      return { ...p, openligaClub: def.openligaClub };
+    }
+    return p;
+  });
+  return { players, changed };
 }
 
 function savePlayers(players) {
