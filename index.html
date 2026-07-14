@@ -1238,8 +1238,16 @@ const SPIELPLAN_ENABLED_NAMES = [
 // kann sich ändern, ohne dass Farben "verrutschen".
 const SPIELPLAN_PALETTE = ['#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#a855f7', '#f97316', '#14b8a6', '#3b82f6'];
 
+// Manuell festgelegte Vereinsfarben statt automatischer Hash-Zuweisung.
+const PLAYER_COLOR_OVERRIDES = {
+  'linus güther': '#E2001A',   // Union-Rot
+  'nnamdi collins': '#000000', // Eintracht-Schwarz
+  'malte brumm': '#005CA9',    // Hertha-Blau
+};
+
 function getPlayerColor(player) {
   const name = fullName(player);
+  if (PLAYER_COLOR_OVERRIDES[name]) return PLAYER_COLOR_OVERRIDES[name];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   return SPIELPLAN_PALETTE[hash % SPIELPLAN_PALETTE.length];
@@ -1454,7 +1462,7 @@ function renderSpielplanCalendar() {
       <div class="spielplan-daynum">${cellDate.getDate()}</div>
       ${dayMatches.map(({ player, match }) => `
         <div class="spielplan-match ${match.finished ? 'finished' : ''}" style="border-left-color:${getPlayerColor(player)}" title="${escHtml(player.firstName + ' ' + player.lastName)} · ${escHtml(match.competition || '')}${match.time ? ' · ' + match.time + ' Uhr' : ''}">
-          <span><span class="m-tag ${match.isHome ? 'home' : 'away'}">${match.isHome ? 'Heim' : 'Ausw.'}</span><span class="m-player" style="color:${getPlayerColor(player)}">${escHtml(player.firstName + ' ' + player.lastName.slice(0,1) + '.')}</span>${match.time ? `<span class="m-time">${match.time}</span>` : ''}</span>
+          <span><span class="m-tag ${match.isHome ? 'home' : 'away'}">${match.isHome ? 'Heim' : 'Ausw.'}</span><span class="m-player">${escHtml(player.firstName + ' ' + player.lastName.slice(0,1) + '.')}</span>${match.time ? `<span class="m-time">${match.time}</span>` : ''}</span>
           <span class="m-info">vs ${escHtml(match.opponent)}</span>
         </div>
       `).join('')}
