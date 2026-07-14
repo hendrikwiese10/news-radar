@@ -1206,6 +1206,7 @@ const WEEKDAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 const SPIELPLAN_ENABLED_NAMES = [
   'linus güther',     // Union Berlin
   'nnamdi collins',   // Eintracht Frankfurt
+  'malte brumm',      // Hertha BSC U17 (eigener manueller Spielplan)
 ];
 
 function localDateStr(d) {
@@ -1264,12 +1265,48 @@ function getFriendlyMatches(club) {
   }));
 }
 
+// Für Spieler, deren eigene Jugend-Mannschaft nicht bei openligadb erfasst ist
+// (z.B. U17-Teams): kompletter, von Hand gepflegter Spielplan statt Vereins-API.
+// Ersetzt die API-Abfrage komplett (kein Mischen mit Profi-Spielen des Klubs).
+const MANUAL_MATCHES = {
+  'malte brumm': [
+    { date: '2026-07-29', time: '16:30', competition: 'Freundschaftsspiel', home: 'Hertha BSC U17', away: 'SC Staaken 1919 U19', isHome: true },
+    { date: '2026-08-02', time: '11:00', competition: 'Freundschaftsspiel', home: 'Hertha BSC U17', away: 'Viktoria Berlin (U17)', isHome: true },
+    { date: '2026-08-09', time: '11:00', competition: 'U17 Bundesliga', home: 'Hertha BSC', away: 'VfL Wolfsburg', isHome: true },
+    { date: '2026-08-15', time: '11:00', competition: 'U17 Bundesliga', home: 'Eimsbütteler TV', away: 'Hertha BSC', isHome: false },
+    { date: '2026-08-23', time: '11:00', competition: 'U17 Bundesliga', home: 'Hertha BSC', away: 'Holstein Kiel', isHome: true },
+    { date: '2026-08-30', time: '11:00', competition: 'U17 Bundesliga', home: 'Hamburger SV', away: 'Hertha BSC', isHome: false },
+  ],
+};
+
+function getManualMatches(playerName) {
+  const list = MANUAL_MATCHES[playerName.trim().toLowerCase()];
+  if (!list) return null;
+  return list.map(m => ({
+    date: m.date,
+    time: m.time,
+    competition: m.competition,
+    home: m.home,
+    away: m.away,
+    isHome: m.isHome,
+    opponent: m.isHome ? m.away : m.home,
+    finished: false,
+  }));
+}
+
 async function fetchPlayerMatches(player, force) {
   const cacheKey = String(player.id);
   if (!force) {
     const cached = getSpielplanCache(cacheKey);
     if (cached) return cached;
   }
+
+  const manual = getManualMatches(fullName(player));
+  if (manual) {
+    setSpielplanCache(cacheKey, manual);
+    return manual;
+  }
+
   const url = `/api/spielplan?club=${encodeURIComponent(player.openligaClub)}`;
   const resp = await fetch(url);
   const data = await resp.json();
@@ -1291,8 +1328,8 @@ let spielplanMatchesByPlayerId = {};
 
 async function loadSpielplan(force) {
   const enabled = players.filter(p => p.footique && SPIELPLAN_ENABLED_NAMES.includes(fullName(p)));
-  const mapped = enabled.filter(p => p.openligaClub);
-  const unmapped = enabled.filter(p => !p.openligaClub);
+  const mapped = enabled.filter(p => p.openligaClub || MANUAL_MATCHES[fullName(p)]);
+  const unmapped = enabled.filter(p => !p.openligaClub && !MANUAL_MATCHES[fullName(p)]);
 
   document.getElementById('spielplanGrid').innerHTML = `
     <div class="spielplan-loading">
