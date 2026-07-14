@@ -857,14 +857,36 @@ function loadPlayers() {
   return DEFAULT_PLAYERS;
 }
 
+// Bekannte Vereinsnamen-Zuordnung als letzter Fallback, falls weder ID noch
+// Name mit DEFAULT_PLAYERS übereinstimmen (z.B. nach manuellem Bearbeiten/Neuanlegen).
+const KNOWN_OPENLIGA_CLUBS = {
+  'union berlin': '1. FC Union Berlin',
+  '1. fc union berlin': '1. FC Union Berlin',
+  'eintracht frankfurt': 'Eintracht Frankfurt',
+  'hertha bsc': 'Hertha BSC',
+  '1. fc nürnberg': '1. FC Nürnberg',
+  'fc bayern': 'FC Bayern München',
+  'fc bayern münchen': 'FC Bayern München',
+  'borussia dortmund': 'Borussia Dortmund',
+  'vfb stuttgart': 'VfB Stuttgart',
+};
+
+function fullName(p) {
+  return [p.firstName, p.lastName].filter(Boolean).join(' ').trim().toLowerCase();
+}
+
 function migratePlayers(stored) {
   const defaultsById = Object.fromEntries(DEFAULT_PLAYERS.map(p => [p.id, p]));
+  const defaultsByName = Object.fromEntries(DEFAULT_PLAYERS.map(p => [fullName(p), p]));
   let changed = false;
   const players = stored.map(p => {
-    const def = defaultsById[p.id];
-    if (def && def.openligaClub && !p.openligaClub) {
+    if (p.openligaClub) return p;
+    const def = defaultsById[p.id] || defaultsByName[fullName(p)];
+    const fallbackClub = KNOWN_OPENLIGA_CLUBS[(p.club || '').trim().toLowerCase()];
+    const openligaClub = (def && def.openligaClub) || fallbackClub;
+    if (openligaClub) {
       changed = true;
-      return { ...p, openligaClub: def.openligaClub };
+      return { ...p, openligaClub };
     }
     return p;
   });
@@ -1178,11 +1200,12 @@ let calendarMonth = today.getMonth(); // 0-basiert
 const MONTH_NAMES = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const WEEKDAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 
-// Vorerst nur diese Spieler im Spielplan-Kalender (Testphase). Weitere IDs
+// Vorerst nur diese Spieler im Spielplan-Kalender (Testphase). Weitere Namen
 // hier ergänzen, sobald der Rest der Footique-Spieler freigegeben wird.
-const SPIELPLAN_ENABLED_IDS = [
-  1000,             // Linus Güther (Union Berlin)
-  1782834440891,    // Nnamdi Collins (Eintracht Frankfurt)
+// Namensbasiert (statt ID), da IDs sich beim Bearbeiten/Neuanlegen ändern können.
+const SPIELPLAN_ENABLED_NAMES = [
+  'linus güther',     // Union Berlin
+  'nnamdi collins',   // Eintracht Frankfurt
 ];
 
 function localDateStr(d) {
@@ -1235,7 +1258,7 @@ function shiftMonth(delta) {
 let spielplanMatchesByPlayerId = {};
 
 async function loadSpielplan(force) {
-  const enabled = players.filter(p => p.footique && SPIELPLAN_ENABLED_IDS.includes(p.id));
+  const enabled = players.filter(p => p.footique && SPIELPLAN_ENABLED_NAMES.includes(fullName(p)));
   const mapped = enabled.filter(p => p.openligaClub);
   const unmapped = enabled.filter(p => !p.openligaClub);
 
