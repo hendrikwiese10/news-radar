@@ -505,6 +505,57 @@
       text-align: center;
       letter-spacing: .3px;
     }
+
+    /* DASHBOARD */
+    .dashboard-header {
+      margin-bottom: 24px;
+    }
+    .dashboard-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .dashboard-header p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .dashboard-section {
+      margin-bottom: 28px;
+    }
+    .dashboard-section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .dashboard-article-player {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      color: var(--accent2);
+      margin-bottom: 6px;
+    }
+    .dashboard-empty {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 16px 0;
+    }
+    @media (max-width: 768px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
     .spielplan-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -652,13 +703,34 @@
 </header>
 
 <nav class="tabs">
-  <button class="tab active" id="tab-all" onclick="switchTab('all')">Alle Spieler</button>
+  <button class="tab active" id="tab-dashboard" onclick="switchTab('dashboard')">📰 Dashboard</button>
+  <button class="tab" id="tab-all" onclick="switchTab('all')">Alle Spieler</button>
   <button class="tab" id="tab-footique" onclick="switchTab('footique')">⚡ Footique-Spieler</button>
   <button class="tab" id="tab-spielplan" onclick="switchTab('spielplan')">📅 Spielplan</button>
 </nav>
 
 <main>
-  <div id="playerListView">
+  <!-- DASHBOARD -->
+  <div id="dashboardView">
+    <div class="dashboard-header">
+      <h2>Dein Briefing</h2>
+      <p id="dashboardDate"></p>
+    </div>
+    <div class="dashboard-section">
+      <div class="dashboard-section-title">⭐ Top-Talente News</div>
+      <div class="dashboard-grid" id="dashboardTopNews">
+        <div class="dashboard-empty">Wird geladen…</div>
+      </div>
+    </div>
+    <div class="dashboard-section">
+      <div class="dashboard-section-title">📰 Nachwuchsfußball allgemein</div>
+      <div class="dashboard-grid" id="dashboardGeneralNews">
+        <div class="dashboard-empty">Wird geladen…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="playerListView" style="display:none">
     <!-- STATS -->
     <div class="stats" id="stats"></div>
 
@@ -917,6 +989,8 @@ async function seedPlayersIfNeeded() {
   await fsSetDoc(metaRef, { seeded: true, seededAt: Date.now() });
 }
 
+let firstPlayersSnapshotDone = false;
+
 function subscribePlayers() {
   if (unsubscribePlayers) { unsubscribePlayers(); unsubscribePlayers = null; }
   unsubscribePlayers = fsOnSnapshot(fsCollection(db, 'players'), (snap) => {
@@ -924,6 +998,10 @@ function subscribePlayers() {
     renderStats();
     renderTable();
     if (document.getElementById('spielplanView').style.display !== 'none') renderSpielplanCalendar();
+    if (!firstPlayersSnapshotDone) {
+      firstPlayersSnapshotDone = true;
+      if (activeTab === 'dashboard') loadDashboard();
+    }
   }, (err) => {
     console.error('players listener error', err);
     showToast('Fehler beim Laden der Spielerliste: ' + err.message, 'error');
@@ -934,7 +1012,7 @@ let players = [];
 let editId = null;
 let sortKey = 'prio';
 let sortDir = 1;
-let activeTab = 'all';
+let activeTab = 'dashboard';
 
 initFirebase();
 
@@ -970,14 +1048,18 @@ let newsCache = {};
 
 function switchTab(tab) {
   activeTab = tab;
+  document.getElementById('tab-dashboard').classList.toggle('active', tab === 'dashboard');
   document.getElementById('tab-all').classList.toggle('active', tab === 'all');
   document.getElementById('tab-footique').classList.toggle('active', tab === 'footique');
   document.getElementById('tab-spielplan').classList.toggle('active', tab === 'spielplan');
 
-  document.getElementById('playerListView').style.display = tab === 'spielplan' ? 'none' : '';
+  document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
+  document.getElementById('playerListView').style.display = (tab === 'all' || tab === 'footique') ? '' : 'none';
   document.getElementById('spielplanView').style.display = tab === 'spielplan' ? '' : 'none';
 
-  if (tab === 'spielplan') {
+  if (tab === 'dashboard') {
+    loadDashboard();
+  } else if (tab === 'spielplan') {
     loadSpielplan();
   } else {
     renderStats();
@@ -1483,6 +1565,107 @@ function renderSpielplanCalendar() {
   }
 }
 
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+
+// Bewusst generische Suche (keine Vereins-/Spielernamen), damit auch Berichte
+// und Interviews auftauchen, die nicht direkt einen unserer Talente betreffen.
+const GENERAL_NEWS_QUERY = '(Nachwuchsfußball OR "A-Jugend Bundesliga" OR "B-Jugend Bundesliga" OR "DFB-Nachwuchs" OR Nachwuchsleistungszentrum)';
+const GENERAL_NEWS_CACHE_KEY = 'general_news_cache';
+const GENERAL_NEWS_CACHE_TTL = 60 * 60 * 1000; // 1 Stunde
+
+function getCachedGeneralNews() {
+  try {
+    const raw = localStorage.getItem(GENERAL_NEWS_CACHE_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (Date.now() - entry.ts > GENERAL_NEWS_CACHE_TTL) return null;
+    return entry.articles;
+  } catch { return null; }
+}
+
+function setCachedGeneralNews(articles) {
+  try {
+    localStorage.setItem(GENERAL_NEWS_CACHE_KEY, JSON.stringify({ ts: Date.now(), articles }));
+  } catch {}
+}
+
+async function fetchGeneralNews() {
+  const cached = getCachedGeneralNews();
+  if (cached) return cached;
+  const url = `/api/news?q=${encodeURIComponent(GENERAL_NEWS_QUERY)}`;
+  const resp = await fetch(url);
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || 'Serverfehler');
+  const articles = data.articles || [];
+  setCachedGeneralNews(articles);
+  return articles;
+}
+
+function renderDashboardDate() {
+  document.getElementById('dashboardDate').textContent =
+    new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function dashboardArticleCard(a, playerName) {
+  const date = new Date(a.pubDate).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' });
+  return `<a class="article" href="${a.link}" target="_blank" rel="noopener">
+    ${playerName ? `<div class="dashboard-article-player">⭐ ${escHtml(playerName)}</div>` : ''}
+    <div class="article-source">${escHtml(a.source)}</div>
+    <div class="article-title">${escHtml(a.title)}</div>
+    <div class="article-meta">${date}</div>
+  </a>`;
+}
+
+async function loadDashboard() {
+  renderDashboardDate();
+  loadDashboardTopNews();
+  loadDashboardGeneralNews();
+}
+
+async function loadDashboardTopNews() {
+  const el = document.getElementById('dashboardTopNews');
+  const topPlayers = players.filter(p => p.prio === 1);
+  if (topPlayers.length === 0) {
+    el.innerHTML = `<div class="dashboard-empty">Keine Prio-1-Spieler vorhanden</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="dashboard-empty">Wird geladen…</div>`;
+
+  const results = await Promise.allSettled(topPlayers.map(async p => {
+    const cached = getCachedNews(p.id) || newsCache[p.id];
+    const articles = cached || await fetchNews(p);
+    newsCache[p.id] = articles;
+    setCachedNews(p.id, articles);
+    return { player: p, articles };
+  }));
+
+  const cards = [];
+  results.forEach(r => {
+    if (r.status === 'fulfilled') {
+      const name = [r.value.player.firstName, r.value.player.lastName].filter(Boolean).join(' ');
+      r.value.articles.forEach(a => cards.push({ a, name, ts: a.timestamp || 0 }));
+    }
+  });
+  cards.sort((x, y) => y.ts - x.ts);
+
+  el.innerHTML = cards.length === 0
+    ? `<div class="dashboard-empty">Keine aktuellen News zu deinen Top-Talenten</div>`
+    : cards.slice(0, 12).map(c => dashboardArticleCard(c.a, c.name)).join('');
+}
+
+async function loadDashboardGeneralNews() {
+  const el = document.getElementById('dashboardGeneralNews');
+  el.innerHTML = `<div class="dashboard-empty">Wird geladen…</div>`;
+  try {
+    const articles = await fetchGeneralNews();
+    el.innerHTML = articles.length === 0
+      ? `<div class="dashboard-empty">Keine allgemeinen News gefunden</div>`
+      : articles.slice(0, 12).map(a => dashboardArticleCard(a, null)).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(e.message)}</div>`;
+  }
+}
+
 // ─── BULK NEWS ───────────────────────────────────────────────────────────────
 
 async function loadBulkNews(prio) {
@@ -1683,6 +1866,8 @@ document.addEventListener('keydown', e => {
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
 
+renderDashboardDate();
+loadDashboardGeneralNews();
 renderStats();
 renderTable();
 </script>
