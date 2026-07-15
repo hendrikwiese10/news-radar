@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Der Eigentümer meldet sich mit echter E-Mail/Passwort an (nicht anonym)
+    // und sieht/bearbeitet dadurch auch vertrauliche Spieler.
+    function isOwner() {
+      return isSignedIn() && request.auth.token.email == 'hendrikwiese10@gmail.com';
+    }
+
+    match /players/{playerId} {
+      allow read: if isSignedIn() && (isOwner() || resource.data.confidential == false);
+
+      allow create: if isSignedIn() && (isOwner() || request.resource.data.confidential == false);
+
+      allow update: if isSignedIn() && (
+        isOwner() ||
+        (resource.data.confidential == false && request.resource.data.confidential == false)
+      );
+
+      allow delete: if isSignedIn() && (isOwner() || resource.data.confidential == false);
+    }
+
+    match /meta/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isOwner();
+    }
+  }
+}

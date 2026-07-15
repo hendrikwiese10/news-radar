@@ -642,6 +642,7 @@
 <header>
   <h1>📡 News <span>Radar</span></h1>
   <div class="header-actions">
+    <button class="btn btn-ghost" id="ownerLoginBtn" onclick="openLoginModal()" title="Als Eigentümer anmelden">🔒 Login</button>
     <button class="btn btn-prio" onclick="loadBulkNews(1)" title="Prio-1 News">★ Prio-1 News</button>
     <button class="btn btn-ghost" onclick="loadBulkNews(2)" title="Prio-2 News" style="color:var(--prio2);border-color:rgba(99,102,241,.4)">🔵 Prio-2 News</button>
     <button class="btn btn-ghost" onclick="loadBulkNews(3)" title="Prio-3 News">⚫ Prio-3 News</button>
@@ -806,13 +807,30 @@
   </div>
 </div>
 
+<!-- OWNER LOGIN MODAL -->
+<div class="modal-overlay" id="loginModalOverlay">
+  <div class="modal" style="width:min(340px, calc(100vw - 32px))">
+    <h2 id="loginModalTitle">Als Eigentümer anmelden</h2>
+    <div class="form-group">
+      <label>E-Mail</label>
+      <input id="fLoginEmail" type="email" placeholder="deine@email.de" />
+    </div>
+    <div class="form-group">
+      <label>Passwort</label>
+      <input id="fLoginPassword" type="password" placeholder="••••••••" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeLoginModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="submitLogin()">Anmelden</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script>
 // ─── DATA ────────────────────────────────────────────────────────────────────
-
-const STORAGE_KEY = 'scouting_players_v3';
 
 // Fussball.de wurde ersetzt durch openligadb.de: freie API mit komplettem
 // Saisonspielplan (1./2. Bundesliga + DFB-Pokal) inkl. Uhrzeit, kein Scraping
@@ -858,74 +876,147 @@ const DEFAULT_PLAYERS = [
   {"id":1782834290783,"firstName":"Emmanuel","lastName":"Oriokason","pos":"ST","birth":2009,"club":"1. FC Nürnberg","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"1. FC Nürnberg"},
   {"id":1782834381150,"firstName":"Tim","lastName":"Schreyer","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"FC Bayern München"},
   {"id":1782834408843,"firstName":"Daniel","lastName":"Abade","pos":"ST","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"FC Bayern München"},
-  {"id":1782834440891,"firstName":"Nnamdi","lastName":"Collins","pos":"IV","birth":2004,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"openligaClub":"Eintracht Frankfurt"},
+  {"id":1782834440891,"firstName":"Nnamdi","lastName":"Collins","pos":"IV","birth":2004,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"openligaClub":"Eintracht Frankfurt","confidential":true},
 ];
-
-function loadPlayers() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (raw) {
-    let stored = JSON.parse(raw);
-    // Migrate: replace old demo players (IDs 1–6) with real player list
-    const isOldDemo = stored.every(p => p.id >= 1 && p.id <= 6);
-    if (isOldDemo) {
-      savePlayers(DEFAULT_PLAYERS);
-      return DEFAULT_PLAYERS;
-    }
-    // Migrate: bereits gespeicherte Spieler bekommen neu hinzugekommene Felder
-    // (z.B. openligaClub) aus DEFAULT_PLAYERS nachgetragen, ohne eigene Änderungen zu verlieren.
-    const migrated = migratePlayers(stored);
-    if (migrated.changed) savePlayers(migrated.players);
-    return migrated.players;
-  }
-  savePlayers(DEFAULT_PLAYERS);
-  return DEFAULT_PLAYERS;
-}
-
-// Bekannte Vereinsnamen-Zuordnung als letzter Fallback, falls weder ID noch
-// Name mit DEFAULT_PLAYERS übereinstimmen (z.B. nach manuellem Bearbeiten/Neuanlegen).
-const KNOWN_OPENLIGA_CLUBS = {
-  'union berlin': '1. FC Union Berlin',
-  '1. fc union berlin': '1. FC Union Berlin',
-  'eintracht frankfurt': 'Eintracht Frankfurt',
-  'hertha bsc': 'Hertha BSC',
-  '1. fc nürnberg': '1. FC Nürnberg',
-  'fc bayern': 'FC Bayern München',
-  'fc bayern münchen': 'FC Bayern München',
-  'borussia dortmund': 'Borussia Dortmund',
-  'vfb stuttgart': 'VfB Stuttgart',
-};
 
 function fullName(p) {
   return [p.firstName, p.lastName].filter(Boolean).join(' ').trim().toLowerCase();
 }
 
-function migratePlayers(stored) {
-  const defaultsById = Object.fromEntries(DEFAULT_PLAYERS.map(p => [p.id, p]));
-  const defaultsByName = Object.fromEntries(DEFAULT_PLAYERS.map(p => [fullName(p), p]));
-  let changed = false;
-  const players = stored.map(p => {
-    if (p.openligaClub) return p;
-    const def = defaultsById[p.id] || defaultsByName[fullName(p)];
-    const fallbackClub = KNOWN_OPENLIGA_CLUBS[(p.club || '').trim().toLowerCase()];
-    const openligaClub = (def && def.openligaClub) || fallbackClub;
-    if (openligaClub) {
-      changed = true;
-      return { ...p, openligaClub };
-    }
-    return p;
+// ─── FIREBASE (geteilte Live-Datenbank statt localStorage) ──────────────────
+// Siehe FIREBASE_SETUP.md für die einmalige Einrichtung.
+const OWNER_EMAIL = 'hendrikwiese10@gmail.com';
+const firebaseConfig = {
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJECT.firebaseapp.com",
+  projectId: "DEIN_PROJECT",
+  storageBucket: "DEIN_PROJECT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
+};
+
+let db = null, auth = null;
+let fsDoc, fsSetDoc, fsUpdateDoc, fsDeleteDoc, fsGetDoc, fsCollection, fsQuery, fsWhere, fsOnSnapshot;
+let fsSignInAnonymously, fsSignInWithEmailAndPassword, fsSignOut, fsOnAuthStateChanged;
+let unsubscribePlayers = null;
+
+function isOwnerUser() {
+  return !!(auth && auth.currentUser && auth.currentUser.email === OWNER_EMAIL);
+}
+
+async function initFirebase() {
+  if (firebaseConfig.apiKey === 'DEIN_API_KEY') {
+    showToast('Firebase ist noch nicht konfiguriert (siehe FIREBASE_SETUP.md)', 'error');
+    return;
+  }
+  try {
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const am = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+
+    fsDoc = fs.doc; fsSetDoc = fs.setDoc; fsUpdateDoc = fs.updateDoc; fsDeleteDoc = fs.deleteDoc;
+    fsGetDoc = fs.getDoc; fsCollection = fs.collection; fsQuery = fs.query; fsWhere = fs.where;
+    fsOnSnapshot = fs.onSnapshot;
+    fsSignInAnonymously = am.signInAnonymously;
+    fsSignInWithEmailAndPassword = am.signInWithEmailAndPassword;
+    fsSignOut = am.signOut;
+    fsOnAuthStateChanged = am.onAuthStateChanged;
+
+    const app = initializeApp(firebaseConfig);
+    db = fs.getFirestore(app);
+    auth = am.getAuth(app);
+
+    fsOnAuthStateChanged(auth, async (user) => {
+      updateOwnerUI(user);
+      if (isOwnerUser()) await seedPlayersIfNeeded();
+      subscribePlayers();
+    });
+
+    await fsSignInAnonymously(auth);
+  } catch (err) {
+    console.error(err);
+    showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
+  }
+}
+
+async function seedPlayersIfNeeded() {
+  const metaRef = fsDoc(db, 'meta', 'playersMeta');
+  const metaSnap = await fsGetDoc(metaRef);
+  if (metaSnap.exists()) return;
+  for (const p of DEFAULT_PLAYERS) {
+    const { id, ...rest } = p;
+    await fsSetDoc(fsDoc(db, 'players', String(id)), { ...rest, confidential: !!rest.confidential });
+  }
+  await fsSetDoc(metaRef, { seeded: true, seededAt: Date.now() });
+}
+
+function subscribePlayers() {
+  if (unsubscribePlayers) { unsubscribePlayers(); unsubscribePlayers = null; }
+  const q = isOwnerUser()
+    ? fsCollection(db, 'players')
+    : fsQuery(fsCollection(db, 'players'), fsWhere('confidential', '==', false));
+  unsubscribePlayers = fsOnSnapshot(q, (snap) => {
+    players = snap.docs.map(d => ({ id: Number(d.id), ...d.data() }));
+    renderStats();
+    renderTable();
+    if (document.getElementById('spielplanView').style.display !== 'none') renderSpielplanCalendar();
+  }, (err) => {
+    console.error('players listener error', err);
+    showToast('Fehler beim Laden der Spielerliste: ' + err.message, 'error');
   });
-  return { players, changed };
 }
 
-function savePlayers(players) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
+function updateOwnerUI(user) {
+  const btn = document.getElementById('ownerLoginBtn');
+  if (isOwnerUser()) {
+    btn.textContent = '🔓 Eigentümer-Modus';
+    btn.title = 'Abmelden';
+    btn.onclick = logoutOwner;
+  } else {
+    btn.textContent = '🔒 Login';
+    btn.title = 'Als Eigentümer anmelden';
+    btn.onclick = openLoginModal;
+  }
 }
 
-let players = loadPlayers();
+function openLoginModal() {
+  document.getElementById('fLoginEmail').value = '';
+  document.getElementById('fLoginPassword').value = '';
+  document.getElementById('loginModalOverlay').classList.add('open');
+}
+
+function closeLoginModal() {
+  document.getElementById('loginModalOverlay').classList.remove('open');
+}
+
+async function submitLogin() {
+  const email = document.getElementById('fLoginEmail').value.trim();
+  const password = document.getElementById('fLoginPassword').value;
+  if (!email || !password) { showToast('E-Mail und Passwort eingeben', 'error'); return; }
+  try {
+    await fsSignOut(auth);
+    await fsSignInWithEmailAndPassword(auth, email, password);
+    closeLoginModal();
+    showToast('Als Eigentümer angemeldet', 'success');
+  } catch (err) {
+    showToast('Login fehlgeschlagen: ' + err.message, 'error');
+    await fsSignInAnonymously(auth);
+  }
+}
+
+async function logoutOwner() {
+  await fsSignOut(auth);
+  await fsSignInAnonymously(auth);
+  showToast('Abgemeldet', 'success');
+}
+
+let players = [];
 let editId = null;
 let sortKey = 'prio';
 let sortDir = 1;
 let activeTab = 'all';
+
+initFirebase();
 
 // ─── NEWS CACHE (localStorage, 1h TTL) ───────────────────────────────────────
 const NEWS_CACHE_KEY = 'news_cache';
@@ -1089,10 +1180,9 @@ function renderTable() {
 function cyclePrio(id) {
   const p = players.find(x => x.id === id);
   if (!p) return;
-  p.prio = p.prio >= 3 ? 1 : p.prio + 1;
-  savePlayers(players);
-  renderTable();
-  renderStats();
+  const newPrio = p.prio >= 3 ? 1 : p.prio + 1;
+  fsUpdateDoc(fsDoc(db, 'players', String(id)), { prio: newPrio })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
 // ─── DELETE ──────────────────────────────────────────────────────────────────
@@ -1100,11 +1190,9 @@ function cyclePrio(id) {
 function deletePlayer(id) {
   const p = players.find(x => x.id === id);
   if (!confirm(`"${p.firstName} ${p.lastName}" wirklich löschen?`)) return;
-  players = players.filter(x => x.id !== id);
-  savePlayers(players);
-  renderTable();
-  renderStats();
-  showToast('Spieler gelöscht', 'success');
+  fsDeleteDoc(fsDoc(db, 'players', String(id)))
+    .then(() => showToast('Spieler gelöscht', 'success'))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
 // ─── NEWS ─────────────────────────────────────────────────────────────────────
@@ -1205,11 +1293,10 @@ function closeDrawer() {
 function toggleFootique(id) {
   const p = players.find(x => x.id === id);
   if (!p) return;
-  p.footique = !p.footique;
-  savePlayers(players);
-  renderTable();
-  renderStats();
-  showToast(p.footique ? `${p.firstName} zu Footique hinzugefügt` : `${p.firstName} aus Footique entfernt`, 'success');
+  const newVal = !p.footique;
+  fsUpdateDoc(fsDoc(db, 'players', String(id)), { footique: newVal })
+    .then(() => showToast(newVal ? `${p.firstName} zu Footique hinzugefügt` : `${p.firstName} aus Footique entfernt`, 'success'))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
 // ─── SPIELPLAN (FIFA-KARRIEREMODUS-KALENDER) ─────────────────────────────────
@@ -1589,8 +1676,6 @@ function savePlayer() {
   };
 
   if (editId) {
-    const idx = players.findIndex(x => x.id === editId);
-    players[idx] = { ...players[idx], ...data };
     delete newsCache[editId]; // Invalidate cache
     delete spielplanMatchesByPlayerId[editId]; // Invalidate Spielplan-Cache
     try {
@@ -1601,17 +1686,17 @@ function savePlayer() {
         localStorage.setItem(SPIELPLAN_CACHE_KEY, JSON.stringify(cache));
       }
     } catch {}
-    showToast('Spieler aktualisiert', 'success');
+    fsUpdateDoc(fsDoc(db, 'players', String(editId)), data)
+      .then(() => showToast('Spieler aktualisiert', 'success'))
+      .catch(err => showToast('Fehler: ' + err.message, 'error'));
   } else {
     const newId = Date.now();
-    players.push({ id: newId, ...data });
-    showToast('Spieler hinzugefügt', 'success');
+    fsSetDoc(fsDoc(db, 'players', String(newId)), { ...data, footique: false, confidential: false })
+      .then(() => showToast('Spieler hinzugefügt', 'success'))
+      .catch(err => showToast('Fehler: ' + err.message, 'error'));
   }
 
-  savePlayers(players);
   closeModal();
-  renderTable();
-  renderStats();
 }
 
 // ─── EXPORT / IMPORT ─────────────────────────────────────────────────────────
@@ -1632,17 +1717,17 @@ function importPlayers(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const imported = JSON.parse(e.target.result);
       if (!Array.isArray(imported)) throw new Error('Ungültiges Format');
-      players = imported;
-      savePlayers(players);
-      renderStats();
-      renderTable();
-      showToast(`${players.length} Spieler importiert`, 'success');
-    } catch {
-      showToast('Import fehlgeschlagen – ungültige Datei', 'error');
+      for (const p of imported) {
+        const { id, ...rest } = p;
+        await fsSetDoc(fsDoc(db, 'players', String(id)), { confidential: false, ...rest });
+      }
+      showToast(`${imported.length} Spieler importiert`, 'success');
+    } catch (err) {
+      showToast('Import fehlgeschlagen: ' + err.message, 'error');
     }
     event.target.value = '';
   };
