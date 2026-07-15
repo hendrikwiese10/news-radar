@@ -519,24 +519,60 @@
       font-size: 13px;
       color: var(--muted);
     }
-    .dashboard-section {
-      margin-bottom: 28px;
+    .dashboard-widgets {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+      align-items: start;
     }
-    .dashboard-section-title {
+    .dashboard-widget {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .dashboard-widget-header {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
       border-bottom: 1px solid var(--border);
     }
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 12px;
+    .dashboard-widget-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 14px;
+      font-weight: 700;
+      flex: 1;
     }
+    .dashboard-widget-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 7px;
+      border-radius: 20px;
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .dashboard-widget-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 440px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .dashboard-widget-body::-webkit-scrollbar { width: 6px; }
+    .dashboard-widget-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     .dashboard-article-player {
       display: inline-flex;
       align-items: center;
@@ -598,7 +634,7 @@
       margin-top: 8px;
     }
     @media (max-width: 768px) {
-      .dashboard-grid { grid-template-columns: 1fr; }
+      .dashboard-widget-body { max-height: none; }
     }
     .spielplan-grid {
       display: grid;
@@ -760,22 +796,33 @@
       <h2>Dein Briefing</h2>
       <p id="dashboardDate"></p>
     </div>
-    <div class="dashboard-section">
-      <div class="dashboard-section-title">📅 Heute geplant</div>
-      <div class="dashboard-grid" id="dashboardTodayContent">
-        <div class="dashboard-empty">Wird geladen…</div>
+    <div class="dashboard-widgets">
+      <div class="dashboard-widget">
+        <div class="dashboard-widget-header">
+          <div class="dashboard-widget-title">📅 Heute geplant</div>
+          <span class="dashboard-widget-count" id="dashboardTodayCount">–</span>
+        </div>
+        <div class="dashboard-widget-body" id="dashboardTodayContent">
+          <div class="dashboard-empty">Wird geladen…</div>
+        </div>
       </div>
-    </div>
-    <div class="dashboard-section">
-      <div class="dashboard-section-title">⭐ Top-Talente News</div>
-      <div class="dashboard-grid" id="dashboardTopNews">
-        <div class="dashboard-empty">Wird geladen…</div>
+      <div class="dashboard-widget">
+        <div class="dashboard-widget-header">
+          <div class="dashboard-widget-title">⭐ Top-Talente News</div>
+          <span class="dashboard-widget-count" id="dashboardTopNewsCount">–</span>
+        </div>
+        <div class="dashboard-widget-body" id="dashboardTopNews">
+          <div class="dashboard-empty">Wird geladen…</div>
+        </div>
       </div>
-    </div>
-    <div class="dashboard-section">
-      <div class="dashboard-section-title">📰 Nachwuchsfußball allgemein</div>
-      <div class="dashboard-grid" id="dashboardGeneralNews">
-        <div class="dashboard-empty">Wird geladen…</div>
+      <div class="dashboard-widget">
+        <div class="dashboard-widget-header">
+          <div class="dashboard-widget-title">📰 Nachwuchsfußball allgemein</div>
+          <span class="dashboard-widget-count" id="dashboardGeneralNewsCount">–</span>
+        </div>
+        <div class="dashboard-widget-body" id="dashboardGeneralNews">
+          <div class="dashboard-empty">Wird geladen…</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1667,6 +1714,7 @@ async function initWochenplanRead() {
 
 function renderTodayContent(posts) {
   const el = document.getElementById('dashboardTodayContent');
+  document.getElementById('dashboardTodayCount').textContent = posts.length;
   if (posts.length === 0) {
     el.innerHTML = `<div class="dashboard-empty">Für heute ist noch nichts im Wochenplan eingetragen</div>`;
     return;
@@ -1746,8 +1794,10 @@ async function loadDashboard() {
 
 async function loadDashboardTopNews() {
   const el = document.getElementById('dashboardTopNews');
+  const countEl = document.getElementById('dashboardTopNewsCount');
   const topPlayers = players.filter(p => p.prio === 1);
   if (topPlayers.length === 0) {
+    countEl.textContent = '0';
     el.innerHTML = `<div class="dashboard-empty">Keine Prio-1-Spieler vorhanden</div>`;
     return;
   }
@@ -1769,6 +1819,7 @@ async function loadDashboardTopNews() {
     }
   });
   cards.sort((x, y) => y.ts - x.ts);
+  countEl.textContent = cards.length;
 
   el.innerHTML = cards.length === 0
     ? `<div class="dashboard-empty">Keine aktuellen News zu deinen Top-Talenten</div>`
@@ -1777,13 +1828,16 @@ async function loadDashboardTopNews() {
 
 async function loadDashboardGeneralNews() {
   const el = document.getElementById('dashboardGeneralNews');
+  const countEl = document.getElementById('dashboardGeneralNewsCount');
   el.innerHTML = `<div class="dashboard-empty">Wird geladen…</div>`;
   try {
     const articles = await fetchGeneralNews();
+    countEl.textContent = articles.length;
     el.innerHTML = articles.length === 0
       ? `<div class="dashboard-empty">Keine allgemeinen News gefunden</div>`
       : articles.slice(0, 12).map(a => dashboardArticleCard(a, null)).join('');
   } catch (e) {
+    countEl.textContent = '!';
     el.innerHTML = `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(e.message)}</div>`;
   }
 }
