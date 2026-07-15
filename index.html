@@ -642,7 +642,6 @@
 <header>
   <h1>📡 News <span>Radar</span></h1>
   <div class="header-actions">
-    <button class="btn btn-ghost" id="ownerLoginBtn" onclick="openLoginModal()" title="Als Eigentümer anmelden">🔒 Login</button>
     <button class="btn btn-prio" onclick="loadBulkNews(1)" title="Prio-1 News">★ Prio-1 News</button>
     <button class="btn btn-ghost" onclick="loadBulkNews(2)" title="Prio-2 News" style="color:var(--prio2);border-color:rgba(99,102,241,.4)">🔵 Prio-2 News</button>
     <button class="btn btn-ghost" onclick="loadBulkNews(3)" title="Prio-3 News">⚫ Prio-3 News</button>
@@ -807,25 +806,6 @@
   </div>
 </div>
 
-<!-- OWNER LOGIN MODAL -->
-<div class="modal-overlay" id="loginModalOverlay">
-  <div class="modal" style="width:min(340px, calc(100vw - 32px))">
-    <h2 id="loginModalTitle">Als Eigentümer anmelden</h2>
-    <div class="form-group">
-      <label>E-Mail</label>
-      <input id="fLoginEmail" type="email" placeholder="deine@email.de" />
-    </div>
-    <div class="form-group">
-      <label>Passwort</label>
-      <input id="fLoginPassword" type="password" placeholder="••••••••" />
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeLoginModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="submitLogin()">Anmelden</button>
-    </div>
-  </div>
-</div>
-
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -876,7 +856,6 @@ const DEFAULT_PLAYERS = [
   {"id":1782834290783,"firstName":"Emmanuel","lastName":"Oriokason","pos":"ST","birth":2009,"club":"1. FC Nürnberg","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"1. FC Nürnberg"},
   {"id":1782834381150,"firstName":"Tim","lastName":"Schreyer","pos":"IV","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"FC Bayern München"},
   {"id":1782834408843,"firstName":"Daniel","lastName":"Abade","pos":"ST","birth":2010,"club":"FC Bayern","nation":"Deutschland","prio":2,"searchTerm":"","footique":true,"openligaClub":"FC Bayern München"},
-  {"id":1782834440891,"firstName":"Nnamdi","lastName":"Collins","pos":"IV","birth":2004,"club":"Eintracht Frankfurt","nation":"Deutschland","prio":1,"searchTerm":"","footique":true,"openligaClub":"Eintracht Frankfurt","confidential":true},
 ];
 
 function fullName(p) {
@@ -884,8 +863,8 @@ function fullName(p) {
 }
 
 // ─── FIREBASE (geteilte Live-Datenbank statt localStorage) ──────────────────
-// Siehe FIREBASE_SETUP.md für die einmalige Einrichtung.
-const OWNER_EMAIL = 'hendrikwiese10@gmail.com';
+// Siehe FIREBASE_SETUP.md für die einmalige Einrichtung. Jeder mit dem Link
+// sieht/bearbeitet dieselben Daten live, kein Login nötig.
 const firebaseConfig = {
   apiKey: "DEIN_API_KEY",
   authDomain: "DEIN_PROJECT.firebaseapp.com",
@@ -896,13 +875,9 @@ const firebaseConfig = {
 };
 
 let db = null, auth = null;
-let fsDoc, fsSetDoc, fsUpdateDoc, fsDeleteDoc, fsGetDoc, fsCollection, fsQuery, fsWhere, fsOnSnapshot;
-let fsSignInAnonymously, fsSignInWithEmailAndPassword, fsSignOut, fsOnAuthStateChanged;
+let fsDoc, fsSetDoc, fsUpdateDoc, fsDeleteDoc, fsGetDoc, fsCollection, fsOnSnapshot;
+let fsSignInAnonymously;
 let unsubscribePlayers = null;
-
-function isOwnerUser() {
-  return !!(auth && auth.currentUser && auth.currentUser.email === OWNER_EMAIL);
-}
 
 async function initFirebase() {
   if (firebaseConfig.apiKey === 'DEIN_API_KEY') {
@@ -915,24 +890,16 @@ async function initFirebase() {
     const am = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
 
     fsDoc = fs.doc; fsSetDoc = fs.setDoc; fsUpdateDoc = fs.updateDoc; fsDeleteDoc = fs.deleteDoc;
-    fsGetDoc = fs.getDoc; fsCollection = fs.collection; fsQuery = fs.query; fsWhere = fs.where;
-    fsOnSnapshot = fs.onSnapshot;
+    fsGetDoc = fs.getDoc; fsCollection = fs.collection; fsOnSnapshot = fs.onSnapshot;
     fsSignInAnonymously = am.signInAnonymously;
-    fsSignInWithEmailAndPassword = am.signInWithEmailAndPassword;
-    fsSignOut = am.signOut;
-    fsOnAuthStateChanged = am.onAuthStateChanged;
 
     const app = initializeApp(firebaseConfig);
     db = fs.getFirestore(app);
     auth = am.getAuth(app);
 
-    fsOnAuthStateChanged(auth, async (user) => {
-      updateOwnerUI(user);
-      if (isOwnerUser()) await seedPlayersIfNeeded();
-      subscribePlayers();
-    });
-
     await fsSignInAnonymously(auth);
+    await seedPlayersIfNeeded();
+    subscribePlayers();
   } catch (err) {
     console.error(err);
     showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
@@ -945,17 +912,14 @@ async function seedPlayersIfNeeded() {
   if (metaSnap.exists()) return;
   for (const p of DEFAULT_PLAYERS) {
     const { id, ...rest } = p;
-    await fsSetDoc(fsDoc(db, 'players', String(id)), { ...rest, confidential: !!rest.confidential });
+    await fsSetDoc(fsDoc(db, 'players', String(id)), rest);
   }
   await fsSetDoc(metaRef, { seeded: true, seededAt: Date.now() });
 }
 
 function subscribePlayers() {
   if (unsubscribePlayers) { unsubscribePlayers(); unsubscribePlayers = null; }
-  const q = isOwnerUser()
-    ? fsCollection(db, 'players')
-    : fsQuery(fsCollection(db, 'players'), fsWhere('confidential', '==', false));
-  unsubscribePlayers = fsOnSnapshot(q, (snap) => {
+  unsubscribePlayers = fsOnSnapshot(fsCollection(db, 'players'), (snap) => {
     players = snap.docs.map(d => ({ id: Number(d.id), ...d.data() }));
     renderStats();
     renderTable();
@@ -964,50 +928,6 @@ function subscribePlayers() {
     console.error('players listener error', err);
     showToast('Fehler beim Laden der Spielerliste: ' + err.message, 'error');
   });
-}
-
-function updateOwnerUI(user) {
-  const btn = document.getElementById('ownerLoginBtn');
-  if (isOwnerUser()) {
-    btn.textContent = '🔓 Eigentümer-Modus';
-    btn.title = 'Abmelden';
-    btn.onclick = logoutOwner;
-  } else {
-    btn.textContent = '🔒 Login';
-    btn.title = 'Als Eigentümer anmelden';
-    btn.onclick = openLoginModal;
-  }
-}
-
-function openLoginModal() {
-  document.getElementById('fLoginEmail').value = '';
-  document.getElementById('fLoginPassword').value = '';
-  document.getElementById('loginModalOverlay').classList.add('open');
-}
-
-function closeLoginModal() {
-  document.getElementById('loginModalOverlay').classList.remove('open');
-}
-
-async function submitLogin() {
-  const email = document.getElementById('fLoginEmail').value.trim();
-  const password = document.getElementById('fLoginPassword').value;
-  if (!email || !password) { showToast('E-Mail und Passwort eingeben', 'error'); return; }
-  try {
-    await fsSignOut(auth);
-    await fsSignInWithEmailAndPassword(auth, email, password);
-    closeLoginModal();
-    showToast('Als Eigentümer angemeldet', 'success');
-  } catch (err) {
-    showToast('Login fehlgeschlagen: ' + err.message, 'error');
-    await fsSignInAnonymously(auth);
-  }
-}
-
-async function logoutOwner() {
-  await fsSignOut(auth);
-  await fsSignInAnonymously(auth);
-  showToast('Abgemeldet', 'success');
 }
 
 let players = [];
@@ -1316,7 +1236,6 @@ const WEEKDAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 // Namensbasiert (statt ID), da IDs sich beim Bearbeiten/Neuanlegen ändern können.
 const SPIELPLAN_ENABLED_NAMES = [
   'linus güther',     // Union Berlin
-  'nnamdi collins',   // Eintracht Frankfurt
   'malte brumm',      // Hertha BSC U17 (eigener manueller Spielplan)
 ];
 
@@ -1328,7 +1247,6 @@ const SPIELPLAN_PALETTE = ['#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#a855f7'
 // Manuell festgelegte Vereinsfarben statt automatischer Hash-Zuweisung.
 const PLAYER_COLOR_OVERRIDES = {
   'linus güther': '#E2001A',   // Union-Rot
-  'nnamdi collins': '#000000', // Eintracht-Schwarz
   'malte brumm': '#005CA9',    // Hertha-Blau
 };
 
@@ -1691,7 +1609,7 @@ function savePlayer() {
       .catch(err => showToast('Fehler: ' + err.message, 'error'));
   } else {
     const newId = Date.now();
-    fsSetDoc(fsDoc(db, 'players', String(newId)), { ...data, footique: false, confidential: false })
+    fsSetDoc(fsDoc(db, 'players', String(newId)), { ...data, footique: false })
       .then(() => showToast('Spieler hinzugefügt', 'success'))
       .catch(err => showToast('Fehler: ' + err.message, 'error'));
   }
@@ -1723,7 +1641,7 @@ function importPlayers(event) {
       if (!Array.isArray(imported)) throw new Error('Ungültiges Format');
       for (const p of imported) {
         const { id, ...rest } = p;
-        await fsSetDoc(fsDoc(db, 'players', String(id)), { confidential: false, ...rest });
+        await fsSetDoc(fsDoc(db, 'players', String(id)), rest);
       }
       showToast(`${imported.length} Spieler importiert`, 'success');
     } catch (err) {
