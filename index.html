@@ -553,6 +553,50 @@
       font-size: 13px;
       padding: 16px 0;
     }
+    .today-content-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .today-content-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .today-content-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .today-content-time {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .today-content-status {
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: auto;
+    }
+    .today-content-text {
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .today-content-owner {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
     @media (max-width: 768px) {
       .dashboard-grid { grid-template-columns: 1fr; }
     }
@@ -715,6 +759,12 @@
     <div class="dashboard-header">
       <h2>Dein Briefing</h2>
       <p id="dashboardDate"></p>
+    </div>
+    <div class="dashboard-section">
+      <div class="dashboard-section-title">📅 Heute geplant</div>
+      <div class="dashboard-grid" id="dashboardTodayContent">
+        <div class="dashboard-empty">Wird geladen…</div>
+      </div>
     </div>
     <div class="dashboard-section">
       <div class="dashboard-section-title">⭐ Top-Talente News</div>
@@ -1565,6 +1615,78 @@ function renderSpielplanCalendar() {
   }
 }
 
+// ─── DASHBOARD: HEUTE GEPLANT (wochenplan-Firestore, separates Projekt, nur lesend) ──
+const WOCHENPLAN_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDLTpV6QIs-gSD1J88x6C7padQmSUBbk58",
+  authDomain: "futureballers-wochenplan.firebaseapp.com",
+  projectId: "futureballers-wochenplan",
+  storageBucket: "futureballers-wochenplan.firebasestorage.app",
+  messagingSenderId: "78611263290",
+  appId: "1:78611263290:web:0b78905cd694827c64aa03"
+};
+const WOCHENPLAN_PLATFORM_BADGES = {
+  X: { text: '𝕏', style: 'background:#000;border:1px solid #444;' },
+  Instagram: { text: 'IG', style: 'background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4);' },
+  TikTok: { text: '♪', style: 'background:#000;border:1px solid #444;color:#25f4ee;' },
+};
+const WOCHENPLAN_STATUS_COLORS = {
+  'Idee': 'var(--muted)',
+  'In Arbeit': 'var(--accent2)',
+  'Fertig': 'var(--accent)',
+  'Gepostet': 'var(--green)',
+};
+
+let wochenplanDb = null;
+
+async function initWochenplanRead() {
+  try {
+    const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+    const fs = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+    const am = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+
+    const wpApp = initializeApp(WOCHENPLAN_FIREBASE_CONFIG, 'wochenplanReader');
+    wochenplanDb = fs.getFirestore(wpApp);
+    const wpAuth = am.getAuth(wpApp);
+    await am.signInAnonymously(wpAuth);
+
+    const todayStr = localDateStr(new Date());
+    const q = fs.query(fs.collection(wochenplanDb, 'posts'), fs.where('day', '==', todayStr));
+    fs.onSnapshot(q, (snap) => {
+      renderTodayContent(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.error('today posts listener error', err);
+      document.getElementById('dashboardTodayContent').innerHTML =
+        `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(err.message)}</div>`;
+    });
+  } catch (err) {
+    console.error('wochenplan init error', err);
+    document.getElementById('dashboardTodayContent').innerHTML =
+      `<div class="dashboard-empty">Wochenplan konnte nicht geladen werden</div>`;
+  }
+}
+
+function renderTodayContent(posts) {
+  const el = document.getElementById('dashboardTodayContent');
+  if (posts.length === 0) {
+    el.innerHTML = `<div class="dashboard-empty">Für heute ist noch nichts im Wochenplan eingetragen</div>`;
+    return;
+  }
+  posts.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  el.innerHTML = posts.map(p => {
+    const badge = WOCHENPLAN_PLATFORM_BADGES[p.platform] || { text: (p.platform || '?').slice(0, 2), style: 'background:var(--surface);' };
+    const statusColor = WOCHENPLAN_STATUS_COLORS[p.status] || 'var(--muted)';
+    return `<div class="today-content-card">
+      <div class="today-content-head">
+        <span class="today-content-badge" style="${badge.style}">${badge.text}</span>
+        ${p.time ? `<span class="today-content-time">${escHtml(p.time)}</span>` : ''}
+        <span class="today-content-status" style="color:${statusColor}">${escHtml(p.status || 'Idee')}</span>
+      </div>
+      <div class="today-content-text">${escHtml(p.text || '(noch kein Text)')}</div>
+      ${p.owner ? `<div class="today-content-owner">👤 ${escHtml(p.owner)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 
 // Bewusst generische Suche (keine Vereins-/Spielernamen), damit auch Berichte
@@ -1868,6 +1990,7 @@ document.addEventListener('keydown', e => {
 
 renderDashboardDate();
 loadDashboardGeneralNews();
+initWochenplanRead();
 renderStats();
 renderTable();
 </script>
