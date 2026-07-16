@@ -759,6 +759,162 @@
       .spielplan-unmapped-row { flex-wrap: wrap; }
     }
 
+    /* NETZWERK */
+    .network-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .network-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .network-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .network-country-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .network-country-header {
+      background: var(--surface2);
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .network-country-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .network-country-title-row .flag { font-size: 18px; }
+    .network-country-title-row .name { font-weight: 700; font-size: 14px; flex: 1; }
+    .network-goal-badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .network-country-stats {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .network-country-delete {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 4px;
+    }
+    .network-country-delete:hover { color: var(--red); }
+    .network-contacts {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px 14px;
+      flex: 1;
+    }
+    .network-contact-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .network-contact-top {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .network-contact-handle {
+      flex: 1;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 2px 0;
+      min-width: 0;
+    }
+    .network-contact-handle:focus { border-bottom-color: var(--border); outline: none; }
+    .network-status-select {
+      font-size: 10.5px;
+      font-weight: 700;
+      border-radius: 20px;
+      padding: 3px 8px;
+      border: none;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .network-contact-delete {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .network-contact-delete:hover { color: var(--red); }
+    .network-contact-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .network-contact-fields input {
+      grid-column: span 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 11.5px;
+      padding: 5px 8px;
+      min-width: 0;
+    }
+    .network-contact-fields input.note-field { grid-column: span 2; }
+    .network-add-contact-btn {
+      margin: 0 14px 14px;
+      padding: 8px;
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .network-add-contact-btn:hover { color: var(--text); border-color: var(--accent); }
+    .network-add-country-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100px;
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .network-add-country-card:hover { color: var(--text); border-color: var(--accent); }
+
     /* MOBILE */
     @media (max-width: 768px) {
       header { padding: 12px 16px; flex-direction: column; align-items: stretch; }
@@ -801,6 +957,7 @@
   <button class="tab" id="tab-spielplan" onclick="switchTab('spielplan')">📅 Spielplan</button>
   <button class="tab" id="tab-wochenplan" onclick="switchTab('wochenplan')">🗓️ Wochenplan</button>
   <button class="tab" id="tab-monatsplan" onclick="switchTab('monatsplan')">📆 Monatsplan</button>
+  <button class="tab" id="tab-netzwerk" onclick="switchTab('netzwerk')">🌍 Netzwerk</button>
 </nav>
 
 <main>
@@ -941,7 +1098,47 @@
     </div>
     <div id="monatsplanGrid" class="spielplan-grid"></div>
   </div>
+
+  <!-- NETZWERK (Scouting-Kontakte pro Land) -->
+  <div id="netzwerkView" style="display:none">
+    <div class="spielplan-header">
+      <div class="spielplan-month-nav">
+        <h2>🌍 Netzwerk</h2>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openNetworkCountryModal()">+ Neues Land</button>
+    </div>
+    <div class="network-legend">
+      <span class="network-status-pill" style="color:#94a3b8;background:rgba(148,163,184,.15)">🔍 identifiziert</span>
+      <span class="network-status-pill" style="color:#f59e0b;background:rgba(245,158,11,.15)">✏️ angeschrieben</span>
+      <span class="network-status-pill" style="color:#6366f1;background:rgba(99,102,241,.15)">💬 in Kontakt</span>
+      <span class="network-status-pill" style="color:#10b981;background:rgba(16,185,129,.15)">✅ liefert Infos</span>
+    </div>
+    <div id="networkGrid" class="network-grid"></div>
+  </div>
 </main>
+
+<!-- NETZWERK NEUES LAND MODAL -->
+<div class="modal-overlay" id="networkCountryModalOverlay">
+  <div class="modal" style="width:min(360px, calc(100vw - 32px))">
+    <h2>Neues Land</h2>
+    <div class="form-group">
+      <label>Flagge (Emoji)</label>
+      <input id="ncFlag" placeholder="z.B. 🇩🇪" />
+    </div>
+    <div class="form-group">
+      <label>Land</label>
+      <input id="ncName" placeholder="z.B. Deutschland" />
+    </div>
+    <div class="form-group">
+      <label>Ziel (Anzahl Kontakte)</label>
+      <input id="ncGoal" type="number" min="0" placeholder="z.B. 3" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeNetworkCountryModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveNetworkCountry()">Speichern</button>
+    </div>
+  </div>
+</div>
 
 <!-- MONATSPLAN TERMIN MODAL -->
 <div class="modal-overlay" id="monatsplanModalOverlay">
@@ -1152,6 +1349,8 @@ async function initFirebase() {
     await seedPlayersIfNeeded();
     subscribePlayers();
     subscribeMonatsplan();
+    await seedNetworkIfNeeded();
+    subscribeNetwork();
   } catch (err) {
     console.error(err);
     showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
@@ -1234,12 +1433,14 @@ function switchTab(tab) {
   document.getElementById('tab-spielplan').classList.toggle('active', tab === 'spielplan');
   document.getElementById('tab-wochenplan').classList.toggle('active', tab === 'wochenplan');
   document.getElementById('tab-monatsplan').classList.toggle('active', tab === 'monatsplan');
+  document.getElementById('tab-netzwerk').classList.toggle('active', tab === 'netzwerk');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
   document.getElementById('playerListView').style.display = (tab === 'all' || tab === 'footique') ? '' : 'none';
   document.getElementById('spielplanView').style.display = tab === 'spielplan' ? '' : 'none';
   document.getElementById('wochenplanView').style.display = tab === 'wochenplan' ? '' : 'none';
   document.getElementById('monatsplanView').style.display = tab === 'monatsplan' ? '' : 'none';
+  document.getElementById('netzwerkView').style.display = tab === 'netzwerk' ? '' : 'none';
 
   if (tab === 'dashboard') {
     loadDashboard();
@@ -1250,6 +1451,8 @@ function switchTab(tab) {
     if (!frame.src) frame.src = '/wochenplan/';
   } else if (tab === 'monatsplan') {
     renderMonatsplanCalendar();
+  } else if (tab === 'netzwerk') {
+    renderNetwork();
   } else {
     renderStats();
     renderTable();
@@ -1867,6 +2070,184 @@ function deleteMonatsplanEventConfirm(id) {
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
+// ─── NETZWERK (Scouting-Kontakte pro Land) ──────────────────────────────────
+const NETWORK_STATUSES = ['identifiziert', 'angeschrieben', 'in Kontakt', 'liefert Infos'];
+const NETWORK_STATUS_STYLES = {
+  'identifiziert': { color: '#94a3b8', bg: 'rgba(148,163,184,.15)' },
+  'angeschrieben': { color: '#f59e0b', bg: 'rgba(245,158,11,.15)' },
+  'in Kontakt':    { color: '#6366f1', bg: 'rgba(99,102,241,.15)' },
+  'liefert Infos': { color: '#10b981', bg: 'rgba(16,185,129,.15)' },
+};
+
+// Einmalige Startbefüllung mit dem Stand aus dem alten Tool.
+const NETWORK_SEED_COUNTRIES = [
+  { flag: '🇩🇪', name: 'Deutschland', goal: 5, order: 0 },
+  { flag: '🇬🇧', name: 'England', goal: 3, order: 1 },
+  { flag: '🇫🇷', name: 'Frankreich', goal: 3, order: 2 },
+  { flag: '🇪🇸', name: 'Spanien', goal: 3, order: 3 },
+  { flag: '🇳🇱', name: 'Niederlande', goal: 2, order: 4 },
+  { flag: '🇧🇪', name: 'Belgien', goal: 2, order: 5 },
+  { flag: '🇵🇹', name: 'Portugal', goal: 2, order: 6 },
+  { flag: '🇮🇹', name: 'Italien', goal: 2, order: 7 },
+  { flag: '🇧🇷', name: 'Brasilien', goal: 2, order: 8 },
+  { flag: '🇦🇷', name: 'Argentinien', goal: 2, order: 9 },
+  { flag: '🇦🇹', name: 'Österreich', goal: 2, order: 10 },
+];
+const NETWORK_SEED_CONTACTS = {
+  'Deutschland': [
+    { handle: 'SCTalente / X', name: '', role: '', note: '', status: 'in Kontakt' },
+    { handle: 'BorussiaSven', name: '', role: '', note: '', status: 'in Kontakt' },
+  ],
+  'England': [
+    { handle: '@SportsPeteO / Transfers', name: '', role: '', note: '', status: 'identifiziert' },
+  ],
+  'Niederlande': [
+    { handle: 'Ajaxacademy', name: '', role: '', note: '', status: 'in Kontakt' },
+  ],
+  'Portugal': [
+    { handle: 'InsiderSporting', name: '', role: '', note: '', status: 'identifiziert' },
+  ],
+  'Österreich': [
+    { handle: 'frank_weahh93', name: '', role: '', note: '', status: 'identifiziert' },
+  ],
+};
+
+let networkCountries = [];
+let networkContacts = [];
+let unsubscribeNetworkCountries = null;
+let unsubscribeNetworkContacts = null;
+
+async function seedNetworkIfNeeded() {
+  const metaRef = fsDoc(db, 'meta', 'networkMeta');
+  const metaSnap = await fsGetDoc(metaRef);
+  if (metaSnap.exists()) return;
+
+  for (const c of NETWORK_SEED_COUNTRIES) {
+    const countryRef = await fsAddDoc(fsCollection(db, 'networkCountries'), c);
+    const contacts = NETWORK_SEED_CONTACTS[c.name] || [];
+    for (const contact of contacts) {
+      await fsAddDoc(fsCollection(db, 'networkContacts'), { ...contact, countryId: countryRef.id });
+    }
+  }
+  await fsSetDoc(metaRef, { seeded: true, seededAt: Date.now() });
+}
+
+function subscribeNetwork() {
+  if (unsubscribeNetworkCountries) unsubscribeNetworkCountries();
+  if (unsubscribeNetworkContacts) unsubscribeNetworkContacts();
+  unsubscribeNetworkCountries = fsOnSnapshot(fsCollection(db, 'networkCountries'), (snap) => {
+    networkCountries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (activeTab === 'netzwerk') renderNetwork();
+  }, (err) => console.error('network countries listener error', err));
+  unsubscribeNetworkContacts = fsOnSnapshot(fsCollection(db, 'networkContacts'), (snap) => {
+    networkContacts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (activeTab === 'netzwerk') renderNetwork();
+  }, (err) => console.error('network contacts listener error', err));
+}
+
+function renderNetwork() {
+  const grid = document.getElementById('networkGrid');
+  const sorted = [...networkCountries].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  grid.innerHTML = sorted.map(country => {
+    const contacts = networkContacts.filter(c => c.countryId === country.id);
+    const liefernCount = contacts.filter(c => c.status === 'liefert Infos').length;
+    return `
+      <div class="network-country-card">
+        <div class="network-country-header">
+          <div class="network-country-title-row">
+            <span class="flag">${escHtml(country.flag || '')}</span>
+            <span class="name">${escHtml(country.name)}</span>
+            <span class="network-goal-badge">Ziel: ${country.goal ?? '–'}</span>
+            <button class="network-country-delete" onclick="deleteNetworkCountry('${country.id}')" title="Land löschen">✕</button>
+          </div>
+          <div class="network-country-stats">${contacts.length} Kontakte · ${liefernCount} liefern</div>
+        </div>
+        <div class="network-contacts">
+          ${contacts.map(c => networkContactCardHtml(c)).join('')}
+        </div>
+        <button class="network-add-contact-btn" onclick="addNetworkContact('${country.id}')">+ Kontakt</button>
+      </div>
+    `;
+  }).join('') + `<div class="network-add-country-card" onclick="openNetworkCountryModal()">+ Neues Land</div>`;
+}
+
+function networkContactCardHtml(c) {
+  const style = NETWORK_STATUS_STYLES[c.status] || NETWORK_STATUS_STYLES['identifiziert'];
+  return `
+    <div class="network-contact-card">
+      <div class="network-contact-top">
+        <input class="network-contact-handle" value="${escHtml(c.handle || '')}" placeholder="Konto / Quelle"
+          onchange="updateNetworkContactField('${c.id}', 'handle', this.value)" />
+        <select class="network-status-select" style="color:${style.color};background:${style.bg}"
+          onchange="updateNetworkContactField('${c.id}', 'status', this.value)">
+          ${NETWORK_STATUSES.map(s => `<option value="${s}" ${s === c.status ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+        <button class="network-contact-delete" onclick="deleteNetworkContact('${c.id}')" title="Kontakt löschen">✕</button>
+      </div>
+      <div class="network-contact-fields">
+        <input value="${escHtml(c.name || '')}" placeholder="Name" onchange="updateNetworkContactField('${c.id}', 'name', this.value)" />
+        <input value="${escHtml(c.role || '')}" placeholder="Rolle" onchange="updateNetworkContactField('${c.id}', 'role', this.value)" />
+        <input class="note-field" value="${escHtml(c.note || '')}" placeholder="Notiz" onchange="updateNetworkContactField('${c.id}', 'note', this.value)" />
+      </div>
+    </div>
+  `;
+}
+
+function addNetworkContact(countryId) {
+  fsAddDoc(fsCollection(db, 'networkContacts'), { countryId, handle: '', name: '', role: '', note: '', status: 'identifiziert' })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function updateNetworkContactField(id, field, value) {
+  fsUpdateDoc(fsDoc(db, 'networkContacts', id), { [field]: value })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function deleteNetworkContact(id) {
+  fsDeleteDoc(fsDoc(db, 'networkContacts', id))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+async function deleteNetworkCountry(id) {
+  const country = networkCountries.find(c => c.id === id);
+  if (!country) return;
+  if (!confirm(`"${country.name}" inkl. aller Kontakte wirklich löschen?`)) return;
+  const contacts = networkContacts.filter(c => c.countryId === id);
+  try {
+    await Promise.all(contacts.map(c => fsDeleteDoc(fsDoc(db, 'networkContacts', c.id))));
+    await fsDeleteDoc(fsDoc(db, 'networkCountries', id));
+    showToast('Land gelöscht', 'success');
+  } catch (err) {
+    showToast('Fehler: ' + err.message, 'error');
+  }
+}
+
+function openNetworkCountryModal() {
+  document.getElementById('ncFlag').value = '';
+  document.getElementById('ncName').value = '';
+  document.getElementById('ncGoal').value = '';
+  document.getElementById('networkCountryModalOverlay').classList.add('open');
+}
+
+function closeNetworkCountryModal() {
+  document.getElementById('networkCountryModalOverlay').classList.remove('open');
+}
+
+function saveNetworkCountry() {
+  const name = document.getElementById('ncName').value.trim();
+  if (!name) { showToast('Land ist Pflichtfeld', 'error'); return; }
+  const data = {
+    flag: document.getElementById('ncFlag').value.trim(),
+    name,
+    goal: parseInt(document.getElementById('ncGoal').value) || 0,
+    order: networkCountries.length,
+  };
+  fsAddDoc(fsCollection(db, 'networkCountries'), data)
+    .then(() => { showToast('Land hinzugefügt', 'success'); closeNetworkCountryModal(); })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
 // ─── DASHBOARD: HEUTE GEPLANT (wochenplan-Firestore, separates Projekt, nur lesend) ──
 const WOCHENPLAN_FIREBASE_CONFIG = {
   apiKey: "AIzaSyDLTpV6QIs-gSD1J88x6C7padQmSUBbk58",
@@ -2284,6 +2665,9 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 });
 document.getElementById('monatsplanModalOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeMonatsplanModal();
+});
+document.getElementById('networkCountryModalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeNetworkCountryModal();
 });
 
 // Keyboard shortcuts
