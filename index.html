@@ -759,6 +759,88 @@
       .spielplan-unmapped-row { flex-wrap: wrap; }
     }
 
+    /* AUFGABENPLAN */
+    .aufgabenplan-columns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .aufgabenplan-column {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+    .aufgabenplan-column-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .aufgabenplan-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+      min-height: 20px;
+    }
+    .aufgabenplan-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .aufgabenplan-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .aufgabenplan-item .task-text {
+      flex: 1;
+      font-size: 13px;
+      word-break: break-word;
+    }
+    .aufgabenplan-item.done .task-text {
+      color: var(--muted);
+      text-decoration: line-through;
+    }
+    .aufgabenplan-item .task-delete {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .aufgabenplan-item .task-delete:hover { color: var(--red); }
+    .aufgabenplan-empty {
+      color: var(--muted);
+      font-size: 13px;
+      padding: 8px 0;
+    }
+    .aufgabenplan-add {
+      display: flex;
+      gap: 8px;
+    }
+    .aufgabenplan-add input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 8px 10px;
+      min-width: 0;
+    }
+
     /* NETZWERK */
     .network-legend {
       display: flex;
@@ -956,7 +1038,8 @@
   <button class="tab" id="tab-footique" onclick="switchTab('footique')">⚡ Footique-Spieler</button>
   <button class="tab" id="tab-spielplan" onclick="switchTab('spielplan')">📅 Spielplan</button>
   <button class="tab" id="tab-wochenplan" onclick="switchTab('wochenplan')">🗓️ Wochenplan</button>
-  <button class="tab" id="tab-monatsplan" onclick="switchTab('monatsplan')">📆 Monatsplan</button>
+  <button class="tab" id="tab-monatsplan" onclick="switchTab('monatsplan')">📆 Abwesenheitsplan</button>
+  <button class="tab" id="tab-aufgabenplan" onclick="switchTab('aufgabenplan')">✅ Aufgabenplan</button>
   <button class="tab" id="tab-netzwerk" onclick="switchTab('netzwerk')">🌍 Netzwerk</button>
 </nav>
 
@@ -1106,6 +1189,33 @@
       <span class="spielplan-legend-item"><span class="spielplan-legend-dot" style="background:#eab308"></span>Michel</span>
     </div>
     <div id="monatsplanGrid" class="spielplan-grid"></div>
+  </div>
+
+  <!-- AUFGABENPLAN (To-dos für Hendrik/Michel) -->
+  <div id="aufgabenplanView" style="display:none">
+    <div class="spielplan-header">
+      <div class="spielplan-month-nav">
+        <h2>✅ Aufgabenplan</h2>
+      </div>
+    </div>
+    <div class="aufgabenplan-columns">
+      <div class="aufgabenplan-column">
+        <div class="aufgabenplan-column-title" style="color:#ef4444">Für Hendrik</div>
+        <div class="aufgabenplan-list" id="aufgabenplanListHendrik"></div>
+        <form class="aufgabenplan-add" onsubmit="event.preventDefault(); addTask('Hendrik')">
+          <input id="aufgabenplanInputHendrik" placeholder="Neue Aufgabe…" />
+          <button class="btn btn-ghost btn-sm" type="submit">+ Hinzufügen</button>
+        </form>
+      </div>
+      <div class="aufgabenplan-column">
+        <div class="aufgabenplan-column-title" style="color:#eab308">Für Michel</div>
+        <div class="aufgabenplan-list" id="aufgabenplanListMichel"></div>
+        <form class="aufgabenplan-add" onsubmit="event.preventDefault(); addTask('Michel')">
+          <input id="aufgabenplanInputMichel" placeholder="Neue Aufgabe…" />
+          <button class="btn btn-ghost btn-sm" type="submit">+ Hinzufügen</button>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- NETZWERK (Scouting-Kontakte pro Land) -->
@@ -1358,6 +1468,7 @@ async function initFirebase() {
     await seedPlayersIfNeeded();
     subscribePlayers();
     subscribeMonatsplan();
+    subscribeTasks();
     await seedNetworkIfNeeded();
     subscribeNetwork();
   } catch (err) {
@@ -1442,6 +1553,7 @@ function switchTab(tab) {
   document.getElementById('tab-spielplan').classList.toggle('active', tab === 'spielplan');
   document.getElementById('tab-wochenplan').classList.toggle('active', tab === 'wochenplan');
   document.getElementById('tab-monatsplan').classList.toggle('active', tab === 'monatsplan');
+  document.getElementById('tab-aufgabenplan').classList.toggle('active', tab === 'aufgabenplan');
   document.getElementById('tab-netzwerk').classList.toggle('active', tab === 'netzwerk');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
@@ -1449,6 +1561,7 @@ function switchTab(tab) {
   document.getElementById('spielplanView').style.display = tab === 'spielplan' ? '' : 'none';
   document.getElementById('wochenplanView').style.display = tab === 'wochenplan' ? '' : 'none';
   document.getElementById('monatsplanView').style.display = tab === 'monatsplan' ? '' : 'none';
+  document.getElementById('aufgabenplanView').style.display = tab === 'aufgabenplan' ? '' : 'none';
   document.getElementById('netzwerkView').style.display = tab === 'netzwerk' ? '' : 'none';
 
   if (tab === 'dashboard') {
@@ -1460,6 +1573,8 @@ function switchTab(tab) {
     if (!frame.src) frame.src = '/wochenplan/';
   } else if (tab === 'monatsplan') {
     renderMonatsplanCalendar();
+  } else if (tab === 'aufgabenplan') {
+    renderAufgabenplan();
   } else if (tab === 'netzwerk') {
     renderNetwork();
   } else {
@@ -2077,6 +2192,60 @@ function deleteMonatsplanEventConfirm(id) {
   if (!confirm(`"${ev.title}" (${ev.person}) wirklich löschen?`)) return;
   fsDeleteDoc(fsDoc(db, 'personalEvents', id))
     .then(() => showToast('Termin gelöscht', 'success'))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+// ─── AUFGABENPLAN (To-dos für Hendrik/Michel) ────────────────────────────────
+let tasks = [];
+let unsubscribeTasks = null;
+
+function subscribeTasks() {
+  if (unsubscribeTasks) { unsubscribeTasks(); unsubscribeTasks = null; }
+  unsubscribeTasks = fsOnSnapshot(fsCollection(db, 'tasks'), (snap) => {
+    tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (document.getElementById('aufgabenplanView').style.display !== 'none') renderAufgabenplan();
+  }, (err) => console.error('tasks listener error', err));
+}
+
+function renderAufgabenplan() {
+  renderAufgabenplanColumn('Hendrik', 'aufgabenplanListHendrik');
+  renderAufgabenplanColumn('Michel', 'aufgabenplanListMichel');
+}
+
+function renderAufgabenplanColumn(person, elementId) {
+  const el = document.getElementById(elementId);
+  const list = tasks
+    .filter(t => t.person === person)
+    .sort((a, b) => (a.done === b.done ? (a.createdAt || 0) - (b.createdAt || 0) : (a.done ? 1 : -1)));
+
+  el.innerHTML = list.length === 0
+    ? `<div class="aufgabenplan-empty">Keine Aufgaben</div>`
+    : list.map(t => `
+      <div class="aufgabenplan-item ${t.done ? 'done' : ''}">
+        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" />
+        <span class="task-text">${escHtml(t.title)}</span>
+        <button class="task-delete" onclick="deleteTask('${t.id}')" title="Löschen">✕</button>
+      </div>
+    `).join('');
+}
+
+function addTask(person) {
+  const inputId = person === 'Hendrik' ? 'aufgabenplanInputHendrik' : 'aufgabenplanInputMichel';
+  const input = document.getElementById(inputId);
+  const title = input.value.trim();
+  if (!title) return;
+  fsAddDoc(fsCollection(db, 'tasks'), { person, title, done: false, createdAt: Date.now() })
+    .then(() => { input.value = ''; })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function toggleTask(id, done) {
+  fsUpdateDoc(fsDoc(db, 'tasks', id), { done })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function deleteTask(id) {
+  fsDeleteDoc(fsDoc(db, 'tasks', id))
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
