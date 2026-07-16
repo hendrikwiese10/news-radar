@@ -314,6 +314,18 @@
       display: block;
     }
     .article:hover { border-color: var(--accent); }
+    .article-decorated { position: relative; padding-right: 38px; overflow: hidden; }
+    .article-decoration {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 18px;
+      opacity: .45;
+      transform: rotate(12deg);
+      transition: transform .15s, opacity .15s;
+      pointer-events: none;
+    }
+    .article-decorated:hover .article-decoration { opacity: .75; transform: rotate(0deg) scale(1.1); }
     .article-source {
       font-size: 10px;
       text-transform: uppercase;
@@ -1971,7 +1983,8 @@ function renderDashboardDate() {
 
 function dashboardArticleCard(a, playerName) {
   const date = new Date(a.pubDate).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' });
-  return `<a class="article" href="${a.link}" target="_blank" rel="noopener">
+  return `<a class="article article-decorated" href="${a.link}" target="_blank" rel="noopener">
+    <span class="article-decoration">🗞️</span>
     ${playerName ? `<div class="dashboard-article-player">⭐ ${escHtml(playerName)}</div>` : ''}
     <div class="article-source">${escHtml(a.source)}</div>
     <div class="article-title">${escHtml(a.title)}</div>
