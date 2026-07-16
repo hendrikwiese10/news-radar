@@ -953,6 +953,10 @@
       </div>
     </div>
     <div class="form-group">
+      <label>Dauer in Minuten (optional)</label>
+      <input id="mpDuration" type="number" min="0" step="5" placeholder="z.B. 60" />
+    </div>
+    <div class="form-group">
       <label>Titel</label>
       <input id="mpTitle" placeholder="z.B. Zahnarzttermin" />
     </div>
@@ -1746,6 +1750,15 @@ let monatsplanMonth = today.getMonth();
 let monatsplanEvents = [];
 let unsubscribeMonatsplan = null;
 
+function formatMonatsplanTime(e) {
+  if (!e.time) return e.duration ? `${e.duration} Min` : '';
+  if (!e.duration) return e.time;
+  const [h, m] = e.time.split(':').map(Number);
+  const end = new Date(2000, 0, 1, h, m + e.duration);
+  const endStr = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+  return `${e.time}–${endStr}`;
+}
+
 function shiftMonatsplanMonth(delta) {
   monatsplanMonth += delta;
   if (monatsplanMonth < 0) { monatsplanMonth = 11; monatsplanYear--; }
@@ -1793,7 +1806,7 @@ function renderMonatsplanCalendar() {
       <div class="spielplan-daynum">${cellDate.getDate()}</div>
       ${dayEvents.map(e => `
         <div class="spielplan-match" style="border-left-color:${MONATSPLAN_COLORS[e.person] || 'var(--muted)'}" onclick="event.stopPropagation(); deleteMonatsplanEventConfirm('${e.id}')" title="Klicken zum Löschen">
-          <span><span class="m-player" style="color:${MONATSPLAN_COLORS[e.person] || 'var(--text)'}">${escHtml(e.person)}</span>${e.time ? `<span class="m-time">${escHtml(e.time)}</span>` : ''}</span>
+          <span><span class="m-player" style="color:${MONATSPLAN_COLORS[e.person] || 'var(--text)'}">${escHtml(e.person)}</span>${formatMonatsplanTime(e) ? `<span class="m-time">${escHtml(formatMonatsplanTime(e))}</span>` : ''}</span>
           <span class="m-info">${escHtml(e.title)}</span>
         </div>
       `).join('')}
@@ -1806,6 +1819,7 @@ function renderMonatsplanCalendar() {
 function openMonatsplanModal(dateStr) {
   document.getElementById('mpDate').value = dateStr || localDateStr(new Date());
   document.getElementById('mpTime').value = '';
+  document.getElementById('mpDuration').value = '';
   document.getElementById('mpTitle').value = '';
   document.getElementById('mpPerson').value = 'Hendrik';
   document.getElementById('monatsplanModalOverlay').classList.add('open');
@@ -1824,6 +1838,7 @@ function saveMonatsplanEvent() {
     person: document.getElementById('mpPerson').value,
     date,
     time: document.getElementById('mpTime').value,
+    duration: parseInt(document.getElementById('mpDuration').value) || null,
     title,
   };
   fsAddDoc(fsCollection(db, 'personalEvents'), data)
