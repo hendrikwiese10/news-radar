@@ -788,6 +788,7 @@
   <button class="tab" id="tab-footique" onclick="switchTab('footique')">⚡ Footique-Spieler</button>
   <button class="tab" id="tab-spielplan" onclick="switchTab('spielplan')">📅 Spielplan</button>
   <button class="tab" id="tab-wochenplan" onclick="switchTab('wochenplan')">🗓️ Wochenplan</button>
+  <button class="tab" id="tab-monatsplan" onclick="switchTab('monatsplan')">📆 Monatsplan</button>
 </nav>
 
 <main>
@@ -911,7 +912,56 @@
     <iframe id="wochenplanFrame" title="Wochenplan"
       style="width:100%; height:calc(100vh - 220px); min-height:600px; border:0; border-radius:12px; background:var(--surface);"></iframe>
   </div>
+
+  <!-- MONATSPLAN (private Termine Hendrik/Michel) -->
+  <div id="monatsplanView" style="display:none">
+    <div class="spielplan-header">
+      <div class="spielplan-month-nav">
+        <button class="btn btn-ghost btn-icon" onclick="shiftMonatsplanMonth(-1)">‹</button>
+        <h2 id="monatsplanMonthLabel">—</h2>
+        <button class="btn btn-ghost btn-icon" onclick="shiftMonatsplanMonth(1)">›</button>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openMonatsplanModal()">+ Termin hinzufügen</button>
+    </div>
+    <div class="spielplan-legend">
+      <span class="spielplan-legend-item"><span class="spielplan-legend-dot" style="background:#ef4444"></span>Hendrik</span>
+      <span class="spielplan-legend-item"><span class="spielplan-legend-dot" style="background:#eab308"></span>Michel</span>
+    </div>
+    <div id="monatsplanGrid" class="spielplan-grid"></div>
+  </div>
 </main>
+
+<!-- MONATSPLAN TERMIN MODAL -->
+<div class="modal-overlay" id="monatsplanModalOverlay">
+  <div class="modal" style="width:min(380px, calc(100vw - 32px))">
+    <h2>Termin hinzufügen</h2>
+    <div class="form-group">
+      <label>Person</label>
+      <select id="mpPerson">
+        <option value="Hendrik">Hendrik</option>
+        <option value="Michel">Michel</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Datum</label>
+        <input id="mpDate" type="date" />
+      </div>
+      <div class="form-group">
+        <label>Uhrzeit (optional)</label>
+        <input id="mpTime" type="time" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Titel</label>
+      <input id="mpTitle" placeholder="z.B. Zahnarzttermin" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMonatsplanModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveMonatsplanEvent()">Speichern</button>
+    </div>
+  </div>
+</div>
 
 <!-- NEWS DRAWER -->
 <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
@@ -1060,7 +1110,7 @@ const firebaseConfig = {
 };
 
 let db = null, auth = null;
-let fsDoc, fsSetDoc, fsUpdateDoc, fsDeleteDoc, fsGetDoc, fsCollection, fsOnSnapshot;
+let fsDoc, fsSetDoc, fsUpdateDoc, fsDeleteDoc, fsGetDoc, fsCollection, fsOnSnapshot, fsAddDoc;
 let fsSignInAnonymously;
 let unsubscribePlayers = null;
 
@@ -1075,7 +1125,7 @@ async function initFirebase() {
     const am = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
 
     fsDoc = fs.doc; fsSetDoc = fs.setDoc; fsUpdateDoc = fs.updateDoc; fsDeleteDoc = fs.deleteDoc;
-    fsGetDoc = fs.getDoc; fsCollection = fs.collection; fsOnSnapshot = fs.onSnapshot;
+    fsGetDoc = fs.getDoc; fsCollection = fs.collection; fsOnSnapshot = fs.onSnapshot; fsAddDoc = fs.addDoc;
     fsSignInAnonymously = am.signInAnonymously;
 
     const app = initializeApp(firebaseConfig);
@@ -1085,6 +1135,7 @@ async function initFirebase() {
     await fsSignInAnonymously(auth);
     await seedPlayersIfNeeded();
     subscribePlayers();
+    subscribeMonatsplan();
   } catch (err) {
     console.error(err);
     showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
@@ -1166,11 +1217,13 @@ function switchTab(tab) {
   document.getElementById('tab-footique').classList.toggle('active', tab === 'footique');
   document.getElementById('tab-spielplan').classList.toggle('active', tab === 'spielplan');
   document.getElementById('tab-wochenplan').classList.toggle('active', tab === 'wochenplan');
+  document.getElementById('tab-monatsplan').classList.toggle('active', tab === 'monatsplan');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
   document.getElementById('playerListView').style.display = (tab === 'all' || tab === 'footique') ? '' : 'none';
   document.getElementById('spielplanView').style.display = tab === 'spielplan' ? '' : 'none';
   document.getElementById('wochenplanView').style.display = tab === 'wochenplan' ? '' : 'none';
+  document.getElementById('monatsplanView').style.display = tab === 'monatsplan' ? '' : 'none';
 
   if (tab === 'dashboard') {
     loadDashboard();
@@ -1179,6 +1232,8 @@ function switchTab(tab) {
   } else if (tab === 'wochenplan') {
     const frame = document.getElementById('wochenplanFrame');
     if (!frame.src) frame.src = '/wochenplan/';
+  } else if (tab === 'monatsplan') {
+    renderMonatsplanCalendar();
   } else {
     renderStats();
     renderTable();
@@ -1683,6 +1738,108 @@ function renderSpielplanCalendar() {
   }
 }
 
+// ─── MONATSPLAN (private Termine Hendrik/Michel) ────────────────────────────
+const MONATSPLAN_COLORS = { 'Hendrik': '#ef4444', 'Michel': '#eab308' };
+
+let monatsplanYear = today.getFullYear();
+let monatsplanMonth = today.getMonth();
+let monatsplanEvents = [];
+let unsubscribeMonatsplan = null;
+
+function shiftMonatsplanMonth(delta) {
+  monatsplanMonth += delta;
+  if (monatsplanMonth < 0) { monatsplanMonth = 11; monatsplanYear--; }
+  if (monatsplanMonth > 11) { monatsplanMonth = 0; monatsplanYear++; }
+  renderMonatsplanCalendar();
+}
+
+function subscribeMonatsplan() {
+  if (unsubscribeMonatsplan) { unsubscribeMonatsplan(); unsubscribeMonatsplan = null; }
+  unsubscribeMonatsplan = fsOnSnapshot(fsCollection(db, 'personalEvents'), (snap) => {
+    monatsplanEvents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (document.getElementById('monatsplanView').style.display !== 'none') renderMonatsplanCalendar();
+  }, (err) => console.error('monatsplan listener error', err));
+}
+
+function renderMonatsplanCalendar() {
+  document.getElementById('monatsplanMonthLabel').textContent = `${MONTH_NAMES[monatsplanMonth]} ${monatsplanYear}`;
+
+  const eventsByDay = {};
+  monatsplanEvents.forEach(e => {
+    if (!e.date) return;
+    const [y, mo] = e.date.split('-').map(Number);
+    if (y !== monatsplanYear || (mo - 1) !== monatsplanMonth) return;
+    if (!eventsByDay[e.date]) eventsByDay[e.date] = [];
+    eventsByDay[e.date].push(e);
+  });
+
+  const firstOfMonth = new Date(monatsplanYear, monatsplanMonth, 1);
+  const startOffset = (firstOfMonth.getDay() + 6) % 7;
+  const daysInMonth = new Date(monatsplanYear, monatsplanMonth + 1, 0).getDate();
+  const gridStart = new Date(monatsplanYear, monatsplanMonth, 1 - startOffset);
+  const todayStr = localDateStr(new Date());
+  const cellCount = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+  let html = WEEKDAYS.map(d => `<div class="spielplan-weekday">${d}</div>`).join('');
+
+  for (let i = 0; i < cellCount; i++) {
+    const cellDate = new Date(gridStart);
+    cellDate.setDate(gridStart.getDate() + i);
+    const dateStr = localDateStr(cellDate);
+    const inMonth = cellDate.getMonth() === monatsplanMonth;
+    const dayEvents = (eventsByDay[dateStr] || []).slice().sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+    html += `<div class="spielplan-day ${inMonth ? '' : 'other-month'} ${dateStr === todayStr ? 'is-today' : ''}" onclick="openMonatsplanModal('${dateStr}')" style="cursor:pointer">
+      <div class="spielplan-daynum">${cellDate.getDate()}</div>
+      ${dayEvents.map(e => `
+        <div class="spielplan-match" style="border-left-color:${MONATSPLAN_COLORS[e.person] || 'var(--muted)'}" onclick="event.stopPropagation(); deleteMonatsplanEventConfirm('${e.id}')" title="Klicken zum Löschen">
+          <span><span class="m-player" style="color:${MONATSPLAN_COLORS[e.person] || 'var(--text)'}">${escHtml(e.person)}</span>${e.time ? `<span class="m-time">${escHtml(e.time)}</span>` : ''}</span>
+          <span class="m-info">${escHtml(e.title)}</span>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  document.getElementById('monatsplanGrid').innerHTML = html;
+}
+
+function openMonatsplanModal(dateStr) {
+  document.getElementById('mpDate').value = dateStr || localDateStr(new Date());
+  document.getElementById('mpTime').value = '';
+  document.getElementById('mpTitle').value = '';
+  document.getElementById('mpPerson').value = 'Hendrik';
+  document.getElementById('monatsplanModalOverlay').classList.add('open');
+}
+
+function closeMonatsplanModal() {
+  document.getElementById('monatsplanModalOverlay').classList.remove('open');
+}
+
+function saveMonatsplanEvent() {
+  const title = document.getElementById('mpTitle').value.trim();
+  const date = document.getElementById('mpDate').value;
+  if (!title || !date) { showToast('Titel und Datum sind Pflicht', 'error'); return; }
+
+  const data = {
+    person: document.getElementById('mpPerson').value,
+    date,
+    time: document.getElementById('mpTime').value,
+    title,
+  };
+  fsAddDoc(fsCollection(db, 'personalEvents'), data)
+    .then(() => { showToast('Termin gespeichert', 'success'); closeMonatsplanModal(); })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function deleteMonatsplanEventConfirm(id) {
+  const ev = monatsplanEvents.find(e => e.id === id);
+  if (!ev) return;
+  if (!confirm(`"${ev.title}" (${ev.person}) wirklich löschen?`)) return;
+  fsDeleteDoc(fsDoc(db, 'personalEvents', id))
+    .then(() => showToast('Termin gelöscht', 'success'))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
 // ─── DASHBOARD: HEUTE GEPLANT (wochenplan-Firestore, separates Projekt, nur lesend) ──
 const WOCHENPLAN_FIREBASE_CONFIG = {
   apiKey: "AIzaSyDLTpV6QIs-gSD1J88x6C7padQmSUBbk58",
@@ -2097,10 +2254,13 @@ function showToast(msg, type = 'success') {
 document.getElementById('modalOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeModal();
 });
+document.getElementById('monatsplanModalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeMonatsplanModal();
+});
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeDrawer(); closeModal(); }
+  if (e.key === 'Escape') { closeDrawer(); closeModal(); closeMonatsplanModal(); }
 });
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
