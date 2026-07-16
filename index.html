@@ -787,6 +787,7 @@
   <button class="tab" id="tab-all" onclick="switchTab('all')">Alle Spieler</button>
   <button class="tab" id="tab-footique" onclick="switchTab('footique')">⚡ Footique-Spieler</button>
   <button class="tab" id="tab-spielplan" onclick="switchTab('spielplan')">📅 Spielplan</button>
+  <button class="tab" id="tab-wochenplan" onclick="switchTab('wochenplan')">🗓️ Wochenplan</button>
 </nav>
 
 <main>
@@ -797,6 +798,15 @@
       <p id="dashboardDate"></p>
     </div>
     <div class="dashboard-widgets">
+      <div class="dashboard-widget">
+        <div class="dashboard-widget-header">
+          <div class="dashboard-widget-title">⚽ Heute im Spielplan</div>
+          <span class="dashboard-widget-count" id="dashboardTodayMatchesCount">–</span>
+        </div>
+        <div class="dashboard-widget-body" id="dashboardTodayMatches">
+          <div class="dashboard-empty">Wird geladen…</div>
+        </div>
+      </div>
       <div class="dashboard-widget">
         <div class="dashboard-widget-header">
           <div class="dashboard-widget-title">📅 Heute geplant</div>
@@ -894,6 +904,12 @@
     <div id="spielplanLegend" class="spielplan-legend"></div>
     <div id="spielplanGrid" class="spielplan-grid"></div>
     <div id="spielplanUnmapped" class="spielplan-unmapped"></div>
+  </div>
+
+  <!-- WOCHENPLAN (eingebettet, eigenständige App unter /wochenplan/) -->
+  <div id="wochenplanView" style="display:none">
+    <iframe id="wochenplanFrame" title="Wochenplan"
+      style="width:100%; height:calc(100vh - 220px); min-height:600px; border:0; border-radius:12px; background:var(--surface);"></iframe>
   </div>
 </main>
 
@@ -1149,15 +1165,20 @@ function switchTab(tab) {
   document.getElementById('tab-all').classList.toggle('active', tab === 'all');
   document.getElementById('tab-footique').classList.toggle('active', tab === 'footique');
   document.getElementById('tab-spielplan').classList.toggle('active', tab === 'spielplan');
+  document.getElementById('tab-wochenplan').classList.toggle('active', tab === 'wochenplan');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
   document.getElementById('playerListView').style.display = (tab === 'all' || tab === 'footique') ? '' : 'none';
   document.getElementById('spielplanView').style.display = tab === 'spielplan' ? '' : 'none';
+  document.getElementById('wochenplanView').style.display = tab === 'wochenplan' ? '' : 'none';
 
   if (tab === 'dashboard') {
     loadDashboard();
   } else if (tab === 'spielplan') {
     loadSpielplan();
+  } else if (tab === 'wochenplan') {
+    const frame = document.getElementById('wochenplanFrame');
+    if (!frame.src) frame.src = '/wochenplan/';
   } else {
     renderStats();
     renderTable();
@@ -1788,8 +1809,50 @@ function dashboardArticleCard(a, playerName) {
 
 async function loadDashboard() {
   renderDashboardDate();
+  loadDashboardTodayMatches();
   loadDashboardTopNews();
   loadDashboardGeneralNews();
+}
+
+async function loadDashboardTodayMatches() {
+  const el = document.getElementById('dashboardTodayMatches');
+  const countEl = document.getElementById('dashboardTodayMatchesCount');
+  const enabled = players.filter(p => p.footique && SPIELPLAN_ENABLED_NAMES.includes(fullName(p)));
+  if (enabled.length === 0) {
+    countEl.textContent = '0';
+    el.innerHTML = `<div class="dashboard-empty">Keine Spieler im Spielplan freigeschaltet</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="dashboard-empty">Wird geladen…</div>`;
+
+  const todayStr = localDateStr(new Date());
+  const results = await Promise.allSettled(enabled.map(async p => {
+    const matches = await fetchPlayerMatches(p, false);
+    return { player: p, matches: matches.filter(m => m.date === todayStr) };
+  }));
+
+  const items = [];
+  results.forEach(r => {
+    if (r.status === 'fulfilled') {
+      r.value.matches.forEach(m => items.push({ player: r.value.player, match: m }));
+    }
+  });
+  items.sort((a, b) => (a.match.time || '').localeCompare(b.match.time || ''));
+  countEl.textContent = items.length;
+
+  el.innerHTML = items.length === 0
+    ? `<div class="dashboard-empty">Heute stehen keine Spiele an</div>`
+    : items.map(({ player, match }) => `
+      <div class="today-content-card" style="border-left:3px solid ${getPlayerColor(player)}">
+        <div class="today-content-head">
+          <span class="m-tag ${match.isHome ? 'home' : 'away'}">${match.isHome ? 'Heim' : 'Ausw.'}</span>
+          ${match.time ? `<span class="today-content-time">${escHtml(match.time)}</span>` : ''}
+          <span class="today-content-status" style="color:${getPlayerColor(player)}">${escHtml(player.firstName + ' ' + player.lastName.slice(0,1) + '.')}</span>
+        </div>
+        <div class="today-content-text">vs ${escHtml(match.opponent)}</div>
+        ${match.competition ? `<div class="today-content-owner">${escHtml(match.competition)}</div>` : ''}
+      </div>
+    `).join('');
 }
 
 async function loadDashboardTopNews() {

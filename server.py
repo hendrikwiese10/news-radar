@@ -118,6 +118,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             path = 'index.html'
 
         file_path = os.path.join(BASE_DIR, path)
+        if os.path.isdir(file_path):
+            file_path = os.path.join(file_path, 'index.html')
         if not os.path.isfile(file_path):
             self.send_response(404)
             self.end_headers()
