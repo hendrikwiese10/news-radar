@@ -472,6 +472,28 @@
       border-color: var(--border);
     }
 
+    /* CONTENT FLAGS */
+    .content-flags { display: flex; gap: 4px; }
+    .content-flag {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      font-size: 13px;
+      cursor: pointer;
+      opacity: .35;
+      filter: grayscale(1);
+      transition: all .15s;
+    }
+    .content-flag:hover { opacity: .7; }
+    .content-flag.active {
+      opacity: 1;
+      filter: none;
+      background: rgba(16,185,129,.15);
+      border-color: rgba(16,185,129,.4);
+    }
+
     /* SPIELPLAN / KALENDER */
     .spielplan-header {
       display: flex;
@@ -1161,6 +1183,7 @@
             <th onclick="sortBy('nation')">Nation <span id="sort-nation"></span></th>
             <th onclick="sortBy('prio')">Priorität <span id="sort-prio"></span></th>
             <th>Footique</th>
+            <th>Content</th>
             <th>News</th>
             <th>Aktionen</th>
           </tr>
@@ -1661,7 +1684,7 @@ function renderTable() {
 
   const tbody = document.getElementById('tableBody');
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Keine Spieler gefunden</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Keine Spieler gefunden</td></tr>`;
     return;
   }
 
@@ -1680,6 +1703,13 @@ function renderTable() {
       ? `<button class="footique-badge" onclick="toggleFootique(${p.id})" title="Footique-Spieler">⚡ Footique</button>`
       : `<button class="footique-badge inactive" onclick="toggleFootique(${p.id})" title="Zu Footique hinzufügen">+ Footique</button>`;
 
+    const contentFlagsHtml = `
+      <div class="content-flags">
+        <button class="content-flag ${p.totVideo ? 'active' : ''}" onclick="toggleContentFlag(${p.id}, 'totVideo')" title="Talent of the Day Video">🎬</button>
+        <button class="content-flag ${p.totGrafik ? 'active' : ''}" onclick="toggleContentFlag(${p.id}, 'totGrafik')" title="Talent of the Day Grafik">🖼️</button>
+        <button class="content-flag ${p.breakout ? 'active' : ''}" onclick="toggleContentFlag(${p.id}, 'breakout')" title="Break-Out Spieler">💥</button>
+      </div>`;
+
     return `<tr>
       <td><span class="player-name" onclick="openNewsDrawer(${p.id})">${fullName}</span></td>
       <td>${p.pos || '—'}</td>
@@ -1690,6 +1720,7 @@ function renderTable() {
         <button class="prio-badge ${prioClass}" onclick="cyclePrio(${p.id})" title="Klicken zum Ändern">${prioLabel}</button>
       </td>
       <td>${footiqueHtml}</td>
+      <td>${contentFlagsHtml}</td>
       <td>${newsHtml}</td>
       <td>
         <div class="row-actions">
@@ -1823,6 +1854,17 @@ function toggleFootique(id) {
   const newVal = !p.footique;
   fsUpdateDoc(fsDoc(db, 'players', String(id)), { footique: newVal })
     .then(() => showToast(newVal ? `${p.firstName} zu Footique hinzugefügt` : `${p.firstName} aus Footique entfernt`, 'success'))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+const CONTENT_FLAG_LABELS = { totVideo: 'Talent of the Day Video', totGrafik: 'Talent of the Day Grafik', breakout: 'Break-Out Spieler' };
+
+function toggleContentFlag(id, field) {
+  const p = players.find(x => x.id === id);
+  if (!p) return;
+  const newVal = !p[field];
+  fsUpdateDoc(fsDoc(db, 'players', String(id)), { [field]: newVal })
+    .then(() => showToast(`${CONTENT_FLAG_LABELS[field]}${newVal ? ' gesetzt' : ' entfernt'} (${p.firstName})`, 'success'))
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
