@@ -1101,10 +1101,19 @@
       </div>
       <div class="dashboard-widget">
         <div class="dashboard-widget-header">
-          <div class="dashboard-widget-title">📌 Heutige Aufgaben</div>
+          <div class="dashboard-widget-title">📌 Private Termine heute</div>
           <span class="dashboard-widget-count" id="dashboardTodayTasksCount">–</span>
         </div>
         <div class="dashboard-widget-body" id="dashboardTodayTasks">
+          <div class="dashboard-empty">Wird geladen…</div>
+        </div>
+      </div>
+      <div class="dashboard-widget">
+        <div class="dashboard-widget-header">
+          <div class="dashboard-widget-title">✅ Aufgabenplan heute</div>
+          <span class="dashboard-widget-count" id="dashboardTasksTodayCount">–</span>
+        </div>
+        <div class="dashboard-widget-body" id="dashboardTasksToday">
           <div class="dashboard-empty">Wird geladen…</div>
         </div>
       </div>
@@ -2257,6 +2266,7 @@ function subscribeTasks() {
   unsubscribeTasks = fsOnSnapshot(fsCollection(db, 'tasks'), (snap) => {
     tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (document.getElementById('aufgabenplanView').style.display !== 'none') renderAufgabenplan();
+    if (activeTab === 'dashboard') loadDashboardTasksToday();
   }, (err) => console.error('tasks listener error', err));
 }
 
@@ -2622,8 +2632,34 @@ async function loadDashboard() {
   renderDashboardDate();
   loadDashboardTodayMatches();
   loadDashboardTodayTasks();
+  loadDashboardTasksToday();
   loadDashboardTopNews();
   loadDashboardGeneralNews();
+}
+
+function todayWeekdayIndex() {
+  const jsDay = new Date().getDay(); // 0=So, 1=Mo, ... 6=Sa
+  return jsDay === 0 ? 6 : jsDay - 1; // 0=Mo ... 6=So, passend zu AUFGABEN_WEEKDAYS
+}
+
+function loadDashboardTasksToday() {
+  const el = document.getElementById('dashboardTasksToday');
+  const countEl = document.getElementById('dashboardTasksTodayCount');
+  const weekday = todayWeekdayIndex();
+  const items = tasks
+    .filter(t => t.weekday === weekday)
+    .sort((a, b) => (a.done === b.done ? (a.createdAt || 0) - (b.createdAt || 0) : (a.done ? 1 : -1)));
+
+  countEl.textContent = items.length;
+  el.innerHTML = items.length === 0
+    ? `<div class="dashboard-empty">Für heute (${AUFGABEN_WEEKDAYS[weekday]}) sind keine Aufgaben im Aufgabenplan eingetragen</div>`
+    : items.map(t => `
+      <div class="aufgabenplan-item ${t.done ? 'done' : ''}" style="border-left:3px solid ${MONATSPLAN_COLORS[t.person] || 'var(--muted)'}">
+        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" />
+        <span class="task-text">${escHtml(t.title)}</span>
+        <span style="font-size:10px;color:${MONATSPLAN_COLORS[t.person] || 'var(--muted)'};font-weight:700;margin-left:auto;flex-shrink:0;">${escHtml(t.person)}</span>
+      </div>
+    `).join('');
 }
 
 function loadDashboardTodayTasks() {
