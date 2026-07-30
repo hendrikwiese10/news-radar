@@ -1101,15 +1101,6 @@
       </div>
       <div class="dashboard-widget">
         <div class="dashboard-widget-header">
-          <div class="dashboard-widget-title">📌 Private Termine heute</div>
-          <span class="dashboard-widget-count" id="dashboardTodayTasksCount">–</span>
-        </div>
-        <div class="dashboard-widget-body" id="dashboardTodayTasks">
-          <div class="dashboard-empty">Wird geladen…</div>
-        </div>
-      </div>
-      <div class="dashboard-widget">
-        <div class="dashboard-widget-header">
           <div class="dashboard-widget-title">✅ Aufgabenplan heute</div>
           <span class="dashboard-widget-count" id="dashboardTasksTodayCount">–</span>
         </div>
@@ -2170,7 +2161,6 @@ function subscribeMonatsplan() {
   unsubscribeMonatsplan = fsOnSnapshot(fsCollection(db, 'personalEvents'), (snap) => {
     monatsplanEvents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (document.getElementById('monatsplanView').style.display !== 'none') renderMonatsplanCalendar();
-    if (activeTab === 'dashboard') loadDashboardTodayTasks();
   }, (err) => console.error('monatsplan listener error', err));
 }
 
@@ -2631,7 +2621,6 @@ function dashboardArticleCard(a, playerName) {
 async function loadDashboard() {
   renderDashboardDate();
   loadDashboardTodayMatches();
-  loadDashboardTodayTasks();
   loadDashboardTasksToday();
   loadDashboardTopNews();
   loadDashboardGeneralNews();
@@ -2658,28 +2647,6 @@ function loadDashboardTasksToday() {
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" />
         <span class="task-text">${escHtml(t.title)}</span>
         <span style="font-size:10px;color:${MONATSPLAN_COLORS[t.person] || 'var(--muted)'};font-weight:700;margin-left:auto;flex-shrink:0;">${escHtml(t.person)}</span>
-      </div>
-    `).join('');
-}
-
-function loadDashboardTodayTasks() {
-  const el = document.getElementById('dashboardTodayTasks');
-  const countEl = document.getElementById('dashboardTodayTasksCount');
-  const todayStr = localDateStr(new Date());
-  const events = monatsplanEvents
-    .filter(e => e.date === todayStr)
-    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-
-  countEl.textContent = events.length;
-  el.innerHTML = events.length === 0
-    ? `<div class="dashboard-empty">Heute stehen keine privaten Aufgaben an</div>`
-    : events.map(e => `
-      <div class="today-content-card" style="border-left:3px solid ${MONATSPLAN_COLORS[e.person] || 'var(--muted)'}">
-        <div class="today-content-head">
-          <span class="today-content-status" style="color:${MONATSPLAN_COLORS[e.person] || 'var(--text)'}; margin-left:0;">${escHtml(e.person)}</span>
-          ${formatMonatsplanTime(e) ? `<span class="today-content-time" style="margin-left:auto;">${escHtml(formatMonatsplanTime(e))}</span>` : ''}
-        </div>
-        <div class="today-content-text">${escHtml(e.title)}</div>
       </div>
     `).join('');
 }
