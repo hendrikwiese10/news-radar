@@ -765,7 +765,7 @@
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 16px;
     }
-    .aufgabenplan-column {
+    .aufgabenplan-person-column {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
@@ -780,12 +780,29 @@
       padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
     }
+    .aufgabenplan-days {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .aufgabenplan-day-block {
+      display: flex;
+      flex-direction: column;
+    }
+    .aufgabenplan-day-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
     .aufgabenplan-list {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      margin-bottom: 12px;
-      min-height: 20px;
+      margin-bottom: 8px;
+      min-height: 0;
     }
     .aufgabenplan-item {
       display: flex;
@@ -1037,7 +1054,7 @@
   <button class="tab" id="tab-all" onclick="switchTab('all')">Alle Spieler</button>
   <button class="tab" id="tab-footique" onclick="switchTab('footique')">⚡ Footique-Spieler</button>
   <button class="tab" id="tab-spielplan" onclick="switchTab('spielplan')">📅 Spielplan</button>
-  <button class="tab" id="tab-wochenplan" onclick="switchTab('wochenplan')">🗓️ Wochenplan</button>
+  <button class="tab" id="tab-wochenplan" onclick="switchTab('wochenplan')">🗓️ Content Plan</button>
   <button class="tab" id="tab-monatsplan" onclick="switchTab('monatsplan')">📆 Abwesenheitsplan</button>
   <button class="tab" id="tab-aufgabenplan" onclick="switchTab('aufgabenplan')">✅ Aufgabenplan</button>
   <button class="tab" id="tab-netzwerk" onclick="switchTab('netzwerk')">🌍 Netzwerk</button>
@@ -1199,21 +1216,13 @@
       </div>
     </div>
     <div class="aufgabenplan-columns">
-      <div class="aufgabenplan-column">
+      <div class="aufgabenplan-person-column">
         <div class="aufgabenplan-column-title" style="color:#ef4444">Für Hendrik</div>
-        <div class="aufgabenplan-list" id="aufgabenplanListHendrik"></div>
-        <form class="aufgabenplan-add" onsubmit="event.preventDefault(); addTask('Hendrik')">
-          <input id="aufgabenplanInputHendrik" placeholder="Neue Aufgabe…" />
-          <button class="btn btn-ghost btn-sm" type="submit">+ Hinzufügen</button>
-        </form>
+        <div class="aufgabenplan-days" id="aufgabenplanDaysHendrik"></div>
       </div>
-      <div class="aufgabenplan-column">
+      <div class="aufgabenplan-person-column">
         <div class="aufgabenplan-column-title" style="color:#eab308">Für Michel</div>
-        <div class="aufgabenplan-list" id="aufgabenplanListMichel"></div>
-        <form class="aufgabenplan-add" onsubmit="event.preventDefault(); addTask('Michel')">
-          <input id="aufgabenplanInputMichel" placeholder="Neue Aufgabe…" />
-          <button class="btn btn-ghost btn-sm" type="submit">+ Hinzufügen</button>
-        </form>
+        <div class="aufgabenplan-days" id="aufgabenplanDaysMichel"></div>
       </div>
     </div>
   </div>
@@ -2195,7 +2204,9 @@ function deleteMonatsplanEventConfirm(id) {
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
-// ─── AUFGABENPLAN (To-dos für Hendrik/Michel) ────────────────────────────────
+// ─── AUFGABENPLAN (To-dos für Hendrik/Michel, je Wochentag) ─────────────────
+const AUFGABEN_WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+
 let tasks = [];
 let unsubscribeTasks = null;
 
@@ -2208,33 +2219,46 @@ function subscribeTasks() {
 }
 
 function renderAufgabenplan() {
-  renderAufgabenplanColumn('Hendrik', 'aufgabenplanListHendrik');
-  renderAufgabenplanColumn('Michel', 'aufgabenplanListMichel');
+  renderAufgabenplanPerson('Hendrik', 'aufgabenplanDaysHendrik');
+  renderAufgabenplanPerson('Michel', 'aufgabenplanDaysMichel');
 }
 
-function renderAufgabenplanColumn(person, elementId) {
+function renderAufgabenplanPerson(person, elementId) {
   const el = document.getElementById(elementId);
-  const list = tasks
-    .filter(t => t.person === person)
-    .sort((a, b) => (a.done === b.done ? (a.createdAt || 0) - (b.createdAt || 0) : (a.done ? 1 : -1)));
+  el.innerHTML = AUFGABEN_WEEKDAYS.map((label, weekday) => {
+    const list = tasks
+      .filter(t => t.person === person && t.weekday === weekday)
+      .sort((a, b) => (a.done === b.done ? (a.createdAt || 0) - (b.createdAt || 0) : (a.done ? 1 : -1)));
 
-  el.innerHTML = list.length === 0
-    ? `<div class="aufgabenplan-empty">Keine Aufgaben</div>`
-    : list.map(t => `
-      <div class="aufgabenplan-item ${t.done ? 'done' : ''}">
-        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" />
-        <span class="task-text">${escHtml(t.title)}</span>
-        <button class="task-delete" onclick="deleteTask('${t.id}')" title="Löschen">✕</button>
+    const listHtml = list.length === 0
+      ? `<div class="aufgabenplan-empty">Keine Aufgaben</div>`
+      : list.map(t => `
+        <div class="aufgabenplan-item ${t.done ? 'done' : ''}">
+          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" />
+          <span class="task-text">${escHtml(t.title)}</span>
+          <button class="task-delete" onclick="deleteTask('${t.id}')" title="Löschen">✕</button>
+        </div>
+      `).join('');
+
+    const inputId = `aufgabenplanInput_${person}_${weekday}`;
+    return `
+      <div class="aufgabenplan-day-block">
+        <div class="aufgabenplan-day-title">${label}</div>
+        <div class="aufgabenplan-list">${listHtml}</div>
+        <form class="aufgabenplan-add" onsubmit="event.preventDefault(); addTask('${person}', ${weekday})">
+          <input id="${inputId}" placeholder="Neue Aufgabe…" />
+          <button class="btn btn-ghost btn-sm" type="submit">+</button>
+        </form>
       </div>
-    `).join('');
+    `;
+  }).join('');
 }
 
-function addTask(person) {
-  const inputId = person === 'Hendrik' ? 'aufgabenplanInputHendrik' : 'aufgabenplanInputMichel';
-  const input = document.getElementById(inputId);
+function addTask(person, weekday) {
+  const input = document.getElementById(`aufgabenplanInput_${person}_${weekday}`);
   const title = input.value.trim();
   if (!title) return;
-  fsAddDoc(fsCollection(db, 'tasks'), { person, title, done: false, createdAt: Date.now() })
+  fsAddDoc(fsCollection(db, 'tasks'), { person, weekday, title, done: false, createdAt: Date.now() })
     .then(() => { input.value = ''; })
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
