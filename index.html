@@ -628,6 +628,26 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 12px 14px;
+      transition: background .2s, border-color .2s, box-shadow .2s;
+    }
+    .today-content-card.done {
+      background: rgba(16,185,129,.15);
+      border-color: var(--green);
+      box-shadow: 0 0 0 1px var(--green);
+    }
+    .today-content-done-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      margin-left: 6px;
+      flex-shrink: 0;
     }
     .today-content-head {
       display: flex;
@@ -2554,11 +2574,12 @@ function renderTodayContent(posts) {
   el.innerHTML = posts.map(p => {
     const badge = WOCHENPLAN_PLATFORM_BADGES[p.platform] || { text: (p.platform || '?').slice(0, 2), style: 'background:var(--surface);' };
     const statusColor = WOCHENPLAN_STATUS_COLORS[p.status] || 'var(--muted)';
-    return `<div class="today-content-card">
+    return `<div class="today-content-card ${p.done ? 'done' : ''}">
       <div class="today-content-head">
         <span class="today-content-badge" style="${badge.style}">${badge.text}</span>
         ${p.time ? `<span class="today-content-time">${escHtml(p.time)}</span>` : ''}
         <span class="today-content-status" style="color:${statusColor}">${escHtml(p.status || 'Idee')}</span>
+        ${p.done ? `<span class="today-content-done-check" title="Erledigt">✓</span>` : ''}
       </div>
       <div class="today-content-text">${escHtml(p.text || '(noch kein Text)')}</div>
       ${p.owner ? `<div class="today-content-owner">👤 ${escHtml(p.owner)}</div>` : ''}
