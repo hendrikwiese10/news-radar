@@ -1691,6 +1691,7 @@ async function initFirebase() {
     subscribeTasks();
     await seedNetworkIfNeeded();
     subscribeNetwork();
+    await seedNationsIfNeeded();
     subscribeNations();
   } catch (err) {
     console.error(err);
@@ -1717,6 +1718,7 @@ function subscribePlayers() {
     players = snap.docs.map(d => ({ id: Number(d.id), ...d.data() }));
     renderStats();
     renderTable();
+    ensureNationsForPlayers();
     if (document.getElementById('spielplanView').style.display !== 'none') renderSpielplanCalendar();
     if (!firstPlayersSnapshotDone) {
       firstPlayersSnapshotDone = true;
@@ -2696,15 +2698,72 @@ const POSITION_GROUPS = [
   { label: 'Mittelfeld', positions: ['DM', 'ZM', 'OM'] },
   { label: 'Stürmer', positions: ['LA', 'RA', 'ST'] },
 ];
+const NATION_SEED_LIST = [
+  { flag: '🇩🇪', name: 'Deutschland' },
+  { flag: '🇫🇷', name: 'Frankreich' },
+  { flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', name: 'England' },
+  { flag: '🇪🇸', name: 'Spanien' },
+  { flag: '🇮🇹', name: 'Italien' },
+  { flag: '🇳🇱', name: 'Niederlande' },
+  { flag: '🇵🇹', name: 'Portugal' },
+  { flag: '🇧🇪', name: 'Belgien' },
+  { flag: '🇧🇷', name: 'Brasilien' },
+  { flag: '🇦🇷', name: 'Argentinien' },
+].map((n, i) => ({ ...n, order: i }));
 let nations = [];
 let unsubscribeNations = null;
 let selectedNationId = null;
 let selectedAgeGroup = 'U15';
+let ensureNationsRunning = false;
+let nationsLoaded = false;
+
+// Deterministische Doc-ID aus dem Namen ableiten, damit gleichzeitige
+// Schreibvorgänge (z.B. von mehreren offenen Tabs/Geräten) denselben
+// Nation-Eintrag treffen statt Duplikate anzulegen.
+function nationSlug(name) {
+  return name.trim().toLowerCase()
+    .replace(/[^a-z0-9äöüß]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'nation';
+}
+
+async function seedNationsIfNeeded() {
+  const metaRef = fsDoc(db, 'meta', 'nationsMeta');
+  const metaSnap = await fsGetDoc(metaRef);
+  if (metaSnap.exists()) return;
+  for (const n of NATION_SEED_LIST) {
+    await fsSetDoc(fsDoc(db, 'nations', nationSlug(n.name)), { flag: n.flag, name: n.name, order: n.order, calendars: {} }, { merge: true });
+  }
+  await fsSetDoc(metaRef, { seededAt: Date.now() });
+}
+
+// Legt für jede in der Spieler-Datenbank vorkommende Nation, die noch nicht
+// existiert, automatisch einen Eintrag an (z.B. wenn ein Spieler mit einer
+// neuen Nation angelegt wird). Nutzt eine deterministische Doc-ID, damit
+// parallele Aufrufe (mehrere Tabs/Geräte) keine Duplikate erzeugen.
+async function ensureNationsForPlayers() {
+  if (ensureNationsRunning || !nationsLoaded || !players.length) return;
+  const existingNames = new Set(nations.map(n => (n.name || '').trim().toLowerCase()));
+  const missing = [...new Set(players.map(p => (p.nation || '').trim()).filter(Boolean))]
+    .filter(name => !existingNames.has(name.toLowerCase()));
+  if (!missing.length) return;
+  ensureNationsRunning = true;
+  try {
+    for (const name of missing) {
+      await fsSetDoc(fsDoc(db, 'nations', nationSlug(name)), { flag: '🌍', name, order: 1000, calendars: {} }, { merge: true });
+    }
+  } catch (err) {
+    console.error('ensureNationsForPlayers error', err);
+  } finally {
+    ensureNationsRunning = false;
+  }
+}
 
 function subscribeNations() {
   if (unsubscribeNations) unsubscribeNations();
   unsubscribeNations = fsOnSnapshot(fsCollection(db, 'nations'), (snap) => {
     nations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    nationsLoaded = true;
+    ensureNationsForPlayers();
     if (activeTab === 'nationalmannschaft') renderNationalmannschaft();
   }, (err) => console.error('nations listener error', err));
 }
@@ -2734,7 +2793,8 @@ function renderNationGrid() {
     el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Nationen erfasst.</div>';
     return;
   }
-  el.innerHTML = nations.map(n => `
+  const sorted = [...nations].sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.name.localeCompare(b.name));
+  el.innerHTML = sorted.map(n => `
     <div class="nation-card" onclick="openNation('${n.id}')">
       <span class="flag">${escHtml(n.flag || '🌍')}</span>
       <span class="name">${escHtml(n.name)}</span>
@@ -2855,9 +2915,9 @@ function closeNationModal() {
 function saveNation() {
   const name = document.getElementById('nName').value.trim();
   if (!name) { showToast('Nation ist Pflichtfeld', 'error'); return; }
-  const data = { flag: document.getElementById('nFlag').value.trim(), name, calendars: {} };
+  const data = { flag: document.getElementById('nFlag').value.trim(), name, order: 1000, calendars: {} };
   ensureNationCalendars(data);
-  fsAddDoc(fsCollection(db, 'nations'), data)
+  fsSetDoc(fsDoc(db, 'nations', nationSlug(name)), data, { merge: true })
     .then(() => { showToast('Nation hinzugefügt', 'success'); closeNationModal(); })
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
