@@ -1393,7 +1393,10 @@
         <button class="age-group-tab" data-age="Profis" onclick="selectAgeGroup('Profis')">Profis</button>
       </div>
       <div id="nationSquad"></div>
-      <h2 style="font-size:14px;margin:20px 0 12px">📅 Wichtige Termine</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px;flex-wrap:wrap;gap:8px">
+        <h2 style="font-size:14px;margin:0">📅 Wichtige Termine</h2>
+        <a id="nationSearchBtn" class="btn btn-primary btn-sm" href="#" target="_blank" rel="noopener">🔎 Websuche: Lehrgänge &amp; Spiele</a>
+      </div>
       <div id="nationCalendar"></div>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-top:10px;flex-wrap:wrap">
         <div class="form-group" style="max-width:160px;margin-bottom:0">
@@ -2859,6 +2862,10 @@ function renderNationDetail() {
   ensureNationCalendars(nation);
   document.getElementById('nationDetailTitle').textContent = `${nation.flag || '🌍'} ${nation.name}`;
   document.querySelectorAll('#ageGroupTabs .age-group-tab').forEach(t => t.classList.toggle('active', t.dataset.age === selectedAgeGroup));
+
+  const ageLabel = selectedAgeGroup === 'Profis' ? '' : selectedAgeGroup + '-';
+  const searchQuery = `${nation.name} ${ageLabel}Nationalmannschaft Lehrgang Spiele Termine`;
+  document.getElementById('nationSearchBtn').href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
 
   const squad = players.filter(p => p.nation === nation.name && p.ageGroup === selectedAgeGroup);
   document.getElementById('nationSquad').innerHTML = !squad.length
