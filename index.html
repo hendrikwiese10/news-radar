@@ -1277,8 +1277,10 @@
             <th onclick="sortBy('name')">Spieler <span id="sort-name"></span></th>
             <th onclick="sortBy('pos')">Pos <span id="sort-pos"></span></th>
             <th onclick="sortBy('club')">Verein <span id="sort-club"></span></th>
+            <th onclick="sortBy('mannschaft')">Mannschaft <span id="sort-mannschaft"></span></th>
             <th onclick="sortBy('birth')">Jg. <span id="sort-birth"></span></th>
             <th onclick="sortBy('nation')">Nation <span id="sort-nation"></span></th>
+            <th onclick="sortBy('ageGroup')">Auswahl <span id="sort-ageGroup"></span></th>
             <th onclick="sortBy('prio')">Priorität <span id="sort-prio"></span></th>
             <th>Footique</th>
             <th>Content</th>
@@ -1386,6 +1388,9 @@
         <button class="age-group-tab active" data-age="U15" onclick="selectAgeGroup('U15')">U15</button>
         <button class="age-group-tab" data-age="U16" onclick="selectAgeGroup('U16')">U16</button>
         <button class="age-group-tab" data-age="U17" onclick="selectAgeGroup('U17')">U17</button>
+        <button class="age-group-tab" data-age="U19" onclick="selectAgeGroup('U19')">U19</button>
+        <button class="age-group-tab" data-age="U21" onclick="selectAgeGroup('U21')">U21</button>
+        <button class="age-group-tab" data-age="Profis" onclick="selectAgeGroup('Profis')">Profis</button>
       </div>
       <div id="nationSquad"></div>
       <h2 style="font-size:14px;margin:20px 0 12px">📅 Wichtige Termine</h2>
@@ -1534,18 +1539,36 @@
         <input id="fClub" placeholder="z.B. Bayern München" />
       </div>
       <div class="form-group">
+        <label>Mannschaft</label>
+        <select id="fMannschaft">
+          <option value="">– keine –</option>
+          <option value="U14">U14</option>
+          <option value="U15">U15</option>
+          <option value="U16">U16</option>
+          <option value="U17">U17</option>
+          <option value="U19">U19</option>
+          <option value="U21">U21</option>
+          <option value="Profis">Profis</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>Nation</label>
         <input id="fNation" placeholder="z.B. Deutschland" />
       </div>
-    </div>
-    <div class="form-group">
-      <label>Nationalmannschaft-Jahrgang</label>
-      <select id="fAgeGroup">
-        <option value="">– keiner –</option>
-        <option value="U15">U15</option>
-        <option value="U16">U16</option>
-        <option value="U17">U17</option>
-      </select>
+      <div class="form-group">
+        <label>Auswahl</label>
+        <select id="fAgeGroup">
+          <option value="">– keine –</option>
+          <option value="U15">U15</option>
+          <option value="U16">U16</option>
+          <option value="U17">U17</option>
+          <option value="U19">U19</option>
+          <option value="U21">U21</option>
+          <option value="Profis">Profis</option>
+        </select>
+      </div>
     </div>
     <div class="form-group">
       <label>Priorität</label>
@@ -1847,14 +1870,14 @@ function renderTable() {
   });
 
   // Update sort indicators
-  ['name','pos','club','birth','nation','prio'].forEach(k => {
+  ['name','pos','club','mannschaft','birth','nation','ageGroup','prio'].forEach(k => {
     const el = document.getElementById('sort-' + k);
     if (el) el.textContent = sortKey === k ? (sortDir === 1 ? ' ↑' : ' ↓') : '';
   });
 
   const tbody = document.getElementById('tableBody');
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Keine Spieler gefunden</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">Keine Spieler gefunden</td></tr>`;
     return;
   }
 
@@ -1884,8 +1907,10 @@ function renderTable() {
       <td><span class="player-name" onclick="openNewsDrawer(${p.id})">${fullName}</span></td>
       <td>${p.pos || '—'}</td>
       <td>${p.club || '—'}</td>
+      <td>${p.mannschaft || '—'}</td>
       <td>${p.birth || '—'}</td>
       <td>${p.nation || '—'}</td>
+      <td>${p.ageGroup || '—'}</td>
       <td>
         <button class="prio-badge ${prioClass}" onclick="cyclePrio(${p.id})" title="Klicken zum Ändern">${prioLabel}</button>
       </td>
@@ -2664,7 +2689,7 @@ function saveNetworkCountry() {
 }
 
 // ─── NATIONALMANNSCHAFT ───────────────────────────────────────────────────────
-const AGE_GROUPS = ['U15', 'U16', 'U17'];
+const AGE_GROUPS = ['U15', 'U16', 'U17', 'U19', 'U21', 'Profis'];
 const POSITION_GROUPS = [
   { label: 'TW', positions: ['TW'] },
   { label: 'Verteidiger', positions: ['IV', 'LV', 'RV'] },
@@ -3172,6 +3197,7 @@ function openAddModal() {
   document.getElementById('fPos').value = '';
   document.getElementById('fPrio').value = '1';
   document.getElementById('fBirth').value = '';
+  document.getElementById('fMannschaft').value = '';
   document.getElementById('fAgeGroup').value = '';
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('fFirstName').focus();
@@ -3187,6 +3213,7 @@ function openEditModal(id) {
   document.getElementById('fPos').value = p.pos || '';
   document.getElementById('fBirth').value = p.birth || '';
   document.getElementById('fClub').value = p.club || '';
+  document.getElementById('fMannschaft').value = p.mannschaft || '';
   document.getElementById('fNation').value = p.nation || '';
   document.getElementById('fAgeGroup').value = p.ageGroup || '';
   document.getElementById('fPrio').value = p.prio;
@@ -3210,6 +3237,7 @@ function savePlayer() {
     pos:        document.getElementById('fPos').value,
     birth:      parseInt(document.getElementById('fBirth').value) || null,
     club:       document.getElementById('fClub').value.trim(),
+    mannschaft: document.getElementById('fMannschaft').value || null,
     nation:     document.getElementById('fNation').value.trim(),
     ageGroup:   document.getElementById('fAgeGroup').value || null,
     prio:       parseInt(document.getElementById('fPrio').value),
