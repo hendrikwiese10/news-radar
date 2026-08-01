@@ -1395,7 +1395,7 @@
       <div id="nationSquad"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px;flex-wrap:wrap;gap:8px">
         <h2 style="font-size:14px;margin:0">📅 Wichtige Termine</h2>
-        <a id="nationSearchBtn" class="btn btn-primary btn-sm" href="#" target="_blank" rel="noopener">🔎 Websuche: Lehrgänge &amp; Spiele</a>
+        <button id="nationSearchBtn" class="btn btn-primary btn-sm" onclick="runNationEventSearch()">🔎 KI-Websuche: Termine automatisch eintragen</button>
       </div>
       <div id="nationCalendar"></div>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-top:10px;flex-wrap:wrap">
@@ -2863,10 +2863,6 @@ function renderNationDetail() {
   document.getElementById('nationDetailTitle').textContent = `${nation.flag || '🌍'} ${nation.name}`;
   document.querySelectorAll('#ageGroupTabs .age-group-tab').forEach(t => t.classList.toggle('active', t.dataset.age === selectedAgeGroup));
 
-  const ageLabel = selectedAgeGroup === 'Profis' ? '' : selectedAgeGroup + '-';
-  const searchQuery = `${nation.name} ${ageLabel}Nationalmannschaft Lehrgang Spiele Termine`;
-  document.getElementById('nationSearchBtn').href = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-
   const squad = players.filter(p => p.nation === nation.name && p.ageGroup === selectedAgeGroup);
   document.getElementById('nationSquad').innerHTML = !squad.length
     ? '<div style="color:var(--muted);font-size:13px">Noch keine Spieler in diesem Jahrgang zugeordnet. Zuordnung erfolgt beim Spieler bearbeiten über das Feld "Nationalmannschaft-Jahrgang".</div>'
@@ -2899,6 +2895,44 @@ function addNationCalendarEntry() {
   titleEl.value = '';
   fsUpdateDoc(fsDoc(db, 'nations', nation.id), { calendars: nation.calendars })
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+async function runNationEventSearch() {
+  const nation = nations.find(n => n.id === selectedNationId);
+  if (!nation) return;
+  ensureNationCalendars(nation);
+
+  const btn = document.getElementById('nationSearchBtn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '🔎 Suche läuft…';
+
+  try {
+    const url = `/api/nation-events?nation=${encodeURIComponent(nation.name)}&ageGroup=${encodeURIComponent(selectedAgeGroup)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Websuche fehlgeschlagen');
+
+    const existing = nation.calendars[selectedAgeGroup] || [];
+    const existingKeys = new Set(existing.map(c => `${c.date}|${c.title.trim().toLowerCase()}`));
+    const newEvents = (data.events || []).filter(e => !existingKeys.has(`${e.date}|${e.title.trim().toLowerCase()}`));
+
+    if (!newEvents.length) {
+      showToast('Keine neuen Termine gefunden', 'success');
+      return;
+    }
+
+    nation.calendars[selectedAgeGroup] = existing.concat(
+      newEvents.map(e => ({ id: crypto.randomUUID(), date: e.date, title: e.title }))
+    );
+    await fsUpdateDoc(fsDoc(db, 'nations', nation.id), { calendars: nation.calendars });
+    showToast(`${newEvents.length} neue(r) Termin(e) eingetragen`, 'success');
+  } catch (err) {
+    showToast('Fehler bei der Websuche: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 function deleteNationCalendarEntry(entryId) {
