@@ -19,6 +19,7 @@
       --muted: #94a3b8;
       --green: #10b981;
       --red: #ef4444;
+      --nations: #f97316;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -1056,6 +1057,82 @@
     }
     .network-add-country-card:hover { color: var(--text); border-color: var(--accent); }
 
+    /* NATIONALMANNSCHAFT */
+    .nation-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .nation-card {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .nation-card:hover { border-color: var(--nations); }
+    .nation-card .flag { font-size: 20px; }
+    .nation-card .name { font-weight: 700; font-size: 13px; flex: 1; }
+    .nation-card .nation-delete {
+      background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px;
+    }
+    .nation-card .nation-delete:hover { color: var(--red); }
+    .nation-add-card {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 48px;
+      background: transparent;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .nation-add-card:hover { color: var(--text); border-color: var(--nations); }
+    .age-group-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+    .age-group-tab {
+      padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700;
+      border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer;
+    }
+    .age-group-tab.active { color: var(--nations); border-color: var(--nations); background: rgba(249,115,22,.12); }
+    .formation-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .formation-col {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .formation-col-title {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--nations); font-weight: 700; margin-bottom: 10px; text-align: center;
+    }
+    .formation-player {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+      font-size: 12.5px;
+    }
+    .formation-player:last-child { margin-bottom: 0; }
+    .formation-player .fp-club { color: var(--muted); font-size: 11px; margin-top: 2px; }
+    .formation-player .content-flags { margin-top: 6px; }
+    .formation-player .content-flag { width: 20px; height: 20px; font-size: 10px; }
+    .nation-cal-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px; margin-bottom: 6px; font-size: 12.5px;
+    }
+    .nation-cal-row .cal-date { color: var(--nations); font-weight: 700; flex-shrink: 0; }
+    .nation-cal-row .cal-title { flex: 1; }
+
     /* MOBILE */
     @media (max-width: 768px) {
       header { padding: 12px 16px; flex-direction: column; align-items: stretch; }
@@ -1100,6 +1177,7 @@
   <button class="tab" id="tab-monatsplan" onclick="switchTab('monatsplan')">📆 Abwesenheitsplan</button>
   <button class="tab" id="tab-aufgabenplan" onclick="switchTab('aufgabenplan')">✅ Aufgabenplan</button>
   <button class="tab" id="tab-netzwerk" onclick="switchTab('netzwerk')">🌍 Netzwerk</button>
+  <button class="tab" id="tab-nationalmannschaft" onclick="switchTab('nationalmannschaft')">🇩🇪 Nationalmannschaft</button>
 </nav>
 
 <main>
@@ -1286,7 +1364,65 @@
     </div>
     <div id="networkGrid" class="network-grid"></div>
   </div>
+
+  <div id="nationalmannschaftView" style="display:none">
+    <div id="nationGridWrap">
+      <div class="spielplan-header">
+        <div class="spielplan-month-nav">
+          <h2>🇩🇪 Nationalmannschaft</h2>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openNationModal()">+ Neue Nation</button>
+      </div>
+      <div id="nationGrid" class="nation-grid"></div>
+    </div>
+    <div id="nationDetailWrap" style="display:none">
+      <div class="spielplan-header">
+        <div class="spielplan-month-nav">
+          <button class="btn btn-ghost btn-sm" onclick="closeNation()">← Zurück</button>
+          <h2 id="nationDetailTitle" style="margin-left:8px"></h2>
+        </div>
+      </div>
+      <div class="age-group-tabs" id="ageGroupTabs">
+        <button class="age-group-tab active" data-age="U15" onclick="selectAgeGroup('U15')">U15</button>
+        <button class="age-group-tab" data-age="U16" onclick="selectAgeGroup('U16')">U16</button>
+        <button class="age-group-tab" data-age="U17" onclick="selectAgeGroup('U17')">U17</button>
+      </div>
+      <div id="nationSquad"></div>
+      <h2 style="font-size:14px;margin:20px 0 12px">📅 Wichtige Termine</h2>
+      <div id="nationCalendar"></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-top:10px;flex-wrap:wrap">
+        <div class="form-group" style="max-width:160px;margin-bottom:0">
+          <label>Datum</label>
+          <input type="date" id="ncalDate" />
+        </div>
+        <div class="form-group" style="flex:1;min-width:200px;margin-bottom:0">
+          <label>Was steht an?</label>
+          <input type="text" id="ncalTitle" placeholder="z.B. Lehrgang, Spiel gegen..." />
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addNationCalendarEntry()">+ Termin</button>
+      </div>
+    </div>
+  </div>
 </main>
+
+<!-- NATIONALMANNSCHAFT NEUE NATION MODAL -->
+<div class="modal-overlay" id="nationModalOverlay">
+  <div class="modal" style="width:min(360px, calc(100vw - 32px))">
+    <h2>Neue Nation</h2>
+    <div class="form-group">
+      <label>Flagge (Emoji)</label>
+      <input id="nFlag" placeholder="z.B. 🇩🇪" />
+    </div>
+    <div class="form-group">
+      <label>Nation</label>
+      <input id="nName" placeholder="z.B. Kroatien" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeNationModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveNation()">Speichern</button>
+    </div>
+  </div>
+</div>
 
 <!-- NETZWERK NEUES LAND MODAL -->
 <div class="modal-overlay" id="networkCountryModalOverlay">
@@ -1401,6 +1537,15 @@
         <label>Nation</label>
         <input id="fNation" placeholder="z.B. Deutschland" />
       </div>
+    </div>
+    <div class="form-group">
+      <label>Nationalmannschaft-Jahrgang</label>
+      <select id="fAgeGroup">
+        <option value="">– keiner –</option>
+        <option value="U15">U15</option>
+        <option value="U16">U16</option>
+        <option value="U17">U17</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Priorität</label>
@@ -1523,6 +1668,7 @@ async function initFirebase() {
     subscribeTasks();
     await seedNetworkIfNeeded();
     subscribeNetwork();
+    subscribeNations();
   } catch (err) {
     console.error(err);
     showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
@@ -1607,6 +1753,7 @@ function switchTab(tab) {
   document.getElementById('tab-monatsplan').classList.toggle('active', tab === 'monatsplan');
   document.getElementById('tab-aufgabenplan').classList.toggle('active', tab === 'aufgabenplan');
   document.getElementById('tab-netzwerk').classList.toggle('active', tab === 'netzwerk');
+  document.getElementById('tab-nationalmannschaft').classList.toggle('active', tab === 'nationalmannschaft');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
   document.getElementById('playerListView').style.display = (tab === 'all' || tab === 'footique') ? '' : 'none';
@@ -1615,6 +1762,7 @@ function switchTab(tab) {
   document.getElementById('monatsplanView').style.display = tab === 'monatsplan' ? '' : 'none';
   document.getElementById('aufgabenplanView').style.display = tab === 'aufgabenplan' ? '' : 'none';
   document.getElementById('netzwerkView').style.display = tab === 'netzwerk' ? '' : 'none';
+  document.getElementById('nationalmannschaftView').style.display = tab === 'nationalmannschaft' ? '' : 'none';
 
   if (tab === 'dashboard') {
     loadDashboard();
@@ -1629,6 +1777,8 @@ function switchTab(tab) {
     renderAufgabenplan();
   } else if (tab === 'netzwerk') {
     renderNetwork();
+  } else if (tab === 'nationalmannschaft') {
+    renderNationalmannschaft();
   } else {
     renderStats();
     renderTable();
@@ -2513,6 +2663,197 @@ function saveNetworkCountry() {
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
+// ─── NATIONALMANNSCHAFT ───────────────────────────────────────────────────────
+const AGE_GROUPS = ['U15', 'U16', 'U17'];
+const POSITION_GROUPS = [
+  { label: 'TW', positions: ['TW'] },
+  { label: 'Verteidiger', positions: ['IV', 'LV', 'RV'] },
+  { label: 'Mittelfeld', positions: ['DM', 'ZM', 'OM'] },
+  { label: 'Stürmer', positions: ['LA', 'RA', 'ST'] },
+];
+let nations = [];
+let unsubscribeNations = null;
+let selectedNationId = null;
+let selectedAgeGroup = 'U15';
+
+function subscribeNations() {
+  if (unsubscribeNations) unsubscribeNations();
+  unsubscribeNations = fsOnSnapshot(fsCollection(db, 'nations'), (snap) => {
+    nations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (activeTab === 'nationalmannschaft') renderNationalmannschaft();
+  }, (err) => console.error('nations listener error', err));
+}
+
+function ensureNationCalendars(nation) {
+  if (!nation.calendars) nation.calendars = {};
+  AGE_GROUPS.forEach(g => { if (!nation.calendars[g]) nation.calendars[g] = []; });
+}
+
+function renderNationalmannschaft() {
+  const gridWrap = document.getElementById('nationGridWrap');
+  const detailWrap = document.getElementById('nationDetailWrap');
+  if (selectedNationId) {
+    gridWrap.style.display = 'none';
+    detailWrap.style.display = '';
+    renderNationDetail();
+  } else {
+    gridWrap.style.display = '';
+    detailWrap.style.display = 'none';
+    renderNationGrid();
+  }
+}
+
+function renderNationGrid() {
+  const el = document.getElementById('nationGrid');
+  if (!nations.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Nationen erfasst.</div>';
+    return;
+  }
+  el.innerHTML = nations.map(n => `
+    <div class="nation-card" onclick="openNation('${n.id}')">
+      <span class="flag">${escHtml(n.flag || '🌍')}</span>
+      <span class="name">${escHtml(n.name)}</span>
+      <button class="nation-delete" onclick="event.stopPropagation(); deleteNation('${n.id}')" title="Löschen">✕</button>
+    </div>
+  `).join('');
+}
+
+function openNation(id) {
+  selectedNationId = id;
+  selectedAgeGroup = 'U15';
+  renderNationalmannschaft();
+}
+
+function closeNation() {
+  selectedNationId = null;
+  renderNationalmannschaft();
+}
+
+function selectAgeGroup(age) {
+  selectedAgeGroup = age;
+  renderNationalmannschaft();
+}
+
+function renderFormationPlayer(p) {
+  const fullName = [p.firstName, p.lastName].filter(Boolean).join(' ');
+  const flags = (p.totVideo || p.totGrafik || p.breakout) ? `
+    <div class="content-flags">
+      ${p.totVideo ? '<span class="content-flag active" title="Talent of the Day Video">🎬</span>' : ''}
+      ${p.totGrafik ? '<span class="content-flag active" title="Talent of the Day Grafik">🖼️</span>' : ''}
+      ${p.breakout ? '<span class="content-flag active" title="Break-Out Spieler">💥</span>' : ''}
+    </div>` : '';
+  return `
+    <div class="formation-player">
+      <div>${escHtml(fullName)}</div>
+      ${p.club ? `<div class="fp-club">${escHtml(p.club)}</div>` : ''}
+      ${flags}
+    </div>
+  `;
+}
+
+function renderSquadFormation(squad) {
+  const assignedPositions = POSITION_GROUPS.flatMap(g => g.positions);
+  const groups = POSITION_GROUPS.map(g => ({
+    label: g.label,
+    players: squad.filter(p => g.positions.includes(p.pos)),
+  }));
+  const unassigned = squad.filter(p => !assignedPositions.includes(p.pos));
+  if (unassigned.length) groups.push({ label: 'Ohne Position', players: unassigned });
+
+  return `<div class="formation-grid">${groups.map(g => `
+    <div class="formation-col">
+      <div class="formation-col-title">${escHtml(g.label)}</div>
+      ${g.players.length ? g.players.map(renderFormationPlayer).join('') : '<div style="color:var(--muted);font-size:12px;text-align:center">–</div>'}
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderNationDetail() {
+  const nation = nations.find(n => n.id === selectedNationId);
+  if (!nation) { closeNation(); return; }
+  ensureNationCalendars(nation);
+  document.getElementById('nationDetailTitle').textContent = `${nation.flag || '🌍'} ${nation.name}`;
+  document.querySelectorAll('#ageGroupTabs .age-group-tab').forEach(t => t.classList.toggle('active', t.dataset.age === selectedAgeGroup));
+
+  const squad = players.filter(p => p.nation === nation.name && p.ageGroup === selectedAgeGroup);
+  document.getElementById('nationSquad').innerHTML = !squad.length
+    ? '<div style="color:var(--muted);font-size:13px">Noch keine Spieler in diesem Jahrgang zugeordnet. Zuordnung erfolgt beim Spieler bearbeiten über das Feld "Nationalmannschaft-Jahrgang".</div>'
+    : renderSquadFormation(squad);
+
+  const calEl = document.getElementById('nationCalendar');
+  const cal = (nation.calendars[selectedAgeGroup] || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  calEl.innerHTML = !cal.length
+    ? '<div style="color:var(--muted);font-size:13px">Noch keine Termine erfasst.</div>'
+    : cal.map(c => `
+      <div class="nation-cal-row">
+        <span class="cal-date">${escHtml(c.date)}</span>
+        <span class="cal-title">${escHtml(c.title)}</span>
+        <button class="network-contact-delete" onclick="deleteNationCalendarEntry('${c.id}')" title="Löschen">✕</button>
+      </div>
+    `).join('');
+}
+
+function addNationCalendarEntry() {
+  const dateEl = document.getElementById('ncalDate');
+  const titleEl = document.getElementById('ncalTitle');
+  const date = dateEl.value;
+  const title = titleEl.value.trim();
+  if (!date || !title) return;
+  const nation = nations.find(n => n.id === selectedNationId);
+  if (!nation) return;
+  ensureNationCalendars(nation);
+  nation.calendars[selectedAgeGroup].push({ id: crypto.randomUUID(), date, title });
+  dateEl.value = '';
+  titleEl.value = '';
+  fsUpdateDoc(fsDoc(db, 'nations', nation.id), { calendars: nation.calendars })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function deleteNationCalendarEntry(entryId) {
+  const nation = nations.find(n => n.id === selectedNationId);
+  if (!nation) return;
+  nation.calendars[selectedAgeGroup] = (nation.calendars[selectedAgeGroup] || []).filter(c => c.id !== entryId);
+  fsUpdateDoc(fsDoc(db, 'nations', nation.id), { calendars: nation.calendars })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function openNationModal() {
+  document.getElementById('nFlag').value = '';
+  document.getElementById('nName').value = '';
+  document.getElementById('nationModalOverlay').classList.add('open');
+}
+
+function closeNationModal() {
+  document.getElementById('nationModalOverlay').classList.remove('open');
+}
+
+function saveNation() {
+  const name = document.getElementById('nName').value.trim();
+  if (!name) { showToast('Nation ist Pflichtfeld', 'error'); return; }
+  const data = { flag: document.getElementById('nFlag').value.trim(), name, calendars: {} };
+  ensureNationCalendars(data);
+  fsAddDoc(fsCollection(db, 'nations'), data)
+    .then(() => { showToast('Nation hinzugefügt', 'success'); closeNationModal(); })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+async function deleteNation(id) {
+  const nation = nations.find(n => n.id === id);
+  if (!nation) return;
+  if (!confirm(`"${nation.name}" inkl. aller Termine wirklich löschen?`)) return;
+  if (selectedNationId === id) selectedNationId = null;
+  try {
+    await fsDeleteDoc(fsDoc(db, 'nations', id));
+    showToast('Nation gelöscht', 'success');
+  } catch (err) {
+    showToast('Fehler: ' + err.message, 'error');
+  }
+}
+
+document.getElementById('nationModalOverlay').addEventListener('click', e => {
+  if (e.target.id === 'nationModalOverlay') closeNationModal();
+});
+
 // ─── DASHBOARD: HEUTE GEPLANT (wochenplan-Firestore, separates Projekt, nur lesend) ──
 const WOCHENPLAN_FIREBASE_CONFIG = {
   apiKey: "AIzaSyDLTpV6QIs-gSD1J88x6C7padQmSUBbk58",
@@ -2831,6 +3172,7 @@ function openAddModal() {
   document.getElementById('fPos').value = '';
   document.getElementById('fPrio').value = '1';
   document.getElementById('fBirth').value = '';
+  document.getElementById('fAgeGroup').value = '';
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('fFirstName').focus();
 }
@@ -2846,6 +3188,7 @@ function openEditModal(id) {
   document.getElementById('fBirth').value = p.birth || '';
   document.getElementById('fClub').value = p.club || '';
   document.getElementById('fNation').value = p.nation || '';
+  document.getElementById('fAgeGroup').value = p.ageGroup || '';
   document.getElementById('fPrio').value = p.prio;
   document.getElementById('fSearch').value = p.searchTerm || '';
   document.getElementById('fFbClub').value = p.openligaClub || '';
@@ -2868,6 +3211,7 @@ function savePlayer() {
     birth:      parseInt(document.getElementById('fBirth').value) || null,
     club:       document.getElementById('fClub').value.trim(),
     nation:     document.getElementById('fNation').value.trim(),
+    ageGroup:   document.getElementById('fAgeGroup').value || null,
     prio:       parseInt(document.getElementById('fPrio').value),
     searchTerm: document.getElementById('fSearch').value.trim(),
     openligaClub: document.getElementById('fFbClub').value.trim(),
