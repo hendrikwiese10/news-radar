@@ -5,9 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 
-from anthropic import Anthropic
-
-MODEL = 'claude-opus-5'
+from _claude import call_claude, extract_text
 
 
 def get_nation_events(nation, age_group):
@@ -26,18 +24,16 @@ def get_nation_events(nation, age_group):
         f'erfinde keine Termine.'
     )
 
-    client = Anthropic()
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=2048,
+    response = call_claude(
+        user_content=prompt,
         tools=[{'type': 'web_search_20260209', 'name': 'web_search', 'max_uses': 5}],
-        messages=[{'role': 'user', 'content': prompt}],
+        max_tokens=2048,
     )
 
-    if response.stop_reason == 'refusal':
+    if response.get('stop_reason') == 'refusal':
         return []
 
-    full_text = '\n'.join(b.text for b in response.content if b.type == 'text').strip()
+    full_text = extract_text(response)
 
     match = re.search(r'\[.*\]', full_text, re.DOTALL)
     if not match:

@@ -2,9 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 
-from anthropic import Anthropic
-
-MODEL = 'claude-opus-5'
+from _claude import call_claude, extract_text
 
 SYSTEM_PROMPT = """Du bist Analyst für die Social-Media-Performance von Future Ballers
 (Instagram & TikTok, Content über Nachwuchsfußballtalente Jahrgänge 2010-2012).
@@ -23,16 +21,14 @@ diese Analyse aus, keine Einleitung."""
 
 
 def analyze_week(posts):
-    client = Anthropic()
-    response = client.messages.create(
-        model=MODEL,
+    response = call_claude(
+        user_content=json.dumps(posts, ensure_ascii=False),
+        system_prompt=SYSTEM_PROMPT,
         max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[{'role': 'user', 'content': json.dumps(posts, ensure_ascii=False)}],
     )
-    if response.stop_reason == 'refusal':
+    if response.get('stop_reason') == 'refusal':
         return None
-    return '\n'.join(b.text for b in response.content if b.type == 'text').strip()
+    return extract_text(response)
 
 
 class handler(BaseHTTPRequestHandler):
