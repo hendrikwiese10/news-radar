@@ -808,6 +808,18 @@
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 16px;
     }
+    .qc-textarea {
+      width: 100%;
+      min-height: 220px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 12px;
+      font-family: inherit;
+      resize: vertical;
+    }
     .aufgabenplan-person-column {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -1177,6 +1189,7 @@
   <button class="tab" id="tab-monatsplan" onclick="switchTab('monatsplan')">📆 Abwesenheitsplan</button>
   <button class="tab" id="tab-aufgabenplan" onclick="switchTab('aufgabenplan')">✅ Aufgabenplan</button>
   <button class="tab" id="tab-netzwerk" onclick="switchTab('netzwerk')">🌍 Netzwerk</button>
+  <button class="tab" id="tab-qualitaetskontrolle" onclick="switchTab('qualitaetskontrolle')">🔍 Qualitätskontrolle</button>
   <button class="tab" id="tab-nationalmannschaft" onclick="switchTab('nationalmannschaft')">🇩🇪 Nationalmannschaft</button>
 </nav>
 
@@ -1203,6 +1216,15 @@
           <span class="dashboard-widget-count" id="dashboardTasksTodayCount">–</span>
         </div>
         <div class="dashboard-widget-body" id="dashboardTasksToday">
+          <div class="dashboard-empty">Wird geladen…</div>
+        </div>
+      </div>
+      <div class="dashboard-widget">
+        <div class="dashboard-widget-header">
+          <div class="dashboard-widget-title">🎯 Fokus-Thema der Woche</div>
+          <span class="dashboard-widget-count" id="dashboardFocusThemeCount">–</span>
+        </div>
+        <div class="dashboard-widget-body" id="dashboardFocusTheme">
           <div class="dashboard-empty">Wird geladen…</div>
         </div>
       </div>
@@ -1365,6 +1387,26 @@
       <span class="network-status-pill" style="color:#10b981;background:rgba(16,185,129,.15)">✅ liefert Infos</span>
     </div>
     <div id="networkGrid" class="network-grid"></div>
+  </div>
+
+  <!-- QUALITÄTSKONTROLLE (wöchentliche Schwächen-Analyse, wird zum Fokus-Thema im Dashboard) -->
+  <div id="qualitaetskontrolleView" style="display:none">
+    <div class="spielplan-header">
+      <div class="spielplan-month-nav">
+        <h2>🔍 Qualitätskontrolle</h2>
+      </div>
+    </div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Schwächen und Verbesserungspotenzial der aktuellen Woche – erscheint automatisch als Fokus-Thema im Dashboard.</div>
+    <div class="aufgabenplan-columns">
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title" style="color:#ef4444">Hendrik</div>
+        <textarea id="qcHendrik" class="qc-textarea" placeholder="Was lief diese Woche nicht optimal?"></textarea>
+      </div>
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title" style="color:#eab308">Michel</div>
+        <textarea id="qcMichel" class="qc-textarea" placeholder="Was lief diese Woche nicht optimal?"></textarea>
+      </div>
+    </div>
   </div>
 
   <div id="nationalmannschaftView" style="display:none">
@@ -1696,6 +1738,7 @@ async function initFirebase() {
     subscribeNetwork();
     await seedNationsIfNeeded();
     subscribeNations();
+    subscribeQualityControl();
   } catch (err) {
     console.error(err);
     showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
@@ -1781,6 +1824,7 @@ function switchTab(tab) {
   document.getElementById('tab-monatsplan').classList.toggle('active', tab === 'monatsplan');
   document.getElementById('tab-aufgabenplan').classList.toggle('active', tab === 'aufgabenplan');
   document.getElementById('tab-netzwerk').classList.toggle('active', tab === 'netzwerk');
+  document.getElementById('tab-qualitaetskontrolle').classList.toggle('active', tab === 'qualitaetskontrolle');
   document.getElementById('tab-nationalmannschaft').classList.toggle('active', tab === 'nationalmannschaft');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
@@ -1790,6 +1834,7 @@ function switchTab(tab) {
   document.getElementById('monatsplanView').style.display = tab === 'monatsplan' ? '' : 'none';
   document.getElementById('aufgabenplanView').style.display = tab === 'aufgabenplan' ? '' : 'none';
   document.getElementById('netzwerkView').style.display = tab === 'netzwerk' ? '' : 'none';
+  document.getElementById('qualitaetskontrolleView').style.display = tab === 'qualitaetskontrolle' ? '' : 'none';
   document.getElementById('nationalmannschaftView').style.display = tab === 'nationalmannschaft' ? '' : 'none';
 
   if (tab === 'dashboard') {
@@ -1805,6 +1850,8 @@ function switchTab(tab) {
     renderAufgabenplan();
   } else if (tab === 'netzwerk') {
     renderNetwork();
+  } else if (tab === 'qualitaetskontrolle') {
+    // Live-Textfelder sind bereits über subscribeQualityControl() an Firestore gebunden.
   } else if (tab === 'nationalmannschaft') {
     renderNationalmannschaft();
   } else {
@@ -2590,6 +2637,54 @@ function subscribeNetwork() {
   }, (err) => console.error('network contacts listener error', err));
 }
 
+// ─── QUALITÄTSKONTROLLE (wöchentliche Schwächen-Analyse → Fokus-Thema Dashboard) ──
+let qualityControl = { hendrik: '', michel: '' };
+let unsubscribeQualityControl = null;
+let qcSaveTimerHendrik = null, qcSaveTimerMichel = null;
+
+function subscribeQualityControl() {
+  if (unsubscribeQualityControl) unsubscribeQualityControl();
+  unsubscribeQualityControl = fsOnSnapshot(fsDoc(db, 'meta', 'qualityControl'), (snap) => {
+    qualityControl = snap.exists() ? snap.data() : { hendrik: '', michel: '' };
+    const hEl = document.getElementById('qcHendrik');
+    const mEl = document.getElementById('qcMichel');
+    if (document.activeElement !== hEl && hEl.value !== (qualityControl.hendrik || '')) hEl.value = qualityControl.hendrik || '';
+    if (document.activeElement !== mEl && mEl.value !== (qualityControl.michel || '')) mEl.value = qualityControl.michel || '';
+    if (activeTab === 'dashboard') renderDashboardFocusTheme();
+  }, (err) => console.error('quality control listener error', err));
+}
+
+function saveQualityControlField(field, value) {
+  fsSetDoc(fsDoc(db, 'meta', 'qualityControl'), { [field]: value }, { merge: true })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+document.getElementById('qcHendrik').addEventListener('input', (e) => {
+  clearTimeout(qcSaveTimerHendrik);
+  qcSaveTimerHendrik = setTimeout(() => saveQualityControlField('hendrik', e.target.value), 500);
+});
+document.getElementById('qcMichel').addEventListener('input', (e) => {
+  clearTimeout(qcSaveTimerMichel);
+  qcSaveTimerMichel = setTimeout(() => saveQualityControlField('michel', e.target.value), 500);
+});
+
+function renderDashboardFocusTheme() {
+  const el = document.getElementById('dashboardFocusTheme');
+  const countEl = document.getElementById('dashboardFocusThemeCount');
+  if (!el) return;
+  const h = (qualityControl.hendrik || '').trim();
+  const m = (qualityControl.michel || '').trim();
+  if (countEl) countEl.textContent = `${(h ? 1 : 0) + (m ? 1 : 0)}/2`;
+  if (!h && !m) {
+    el.innerHTML = '<div class="dashboard-empty">Noch keine Schwächen erfasst – trag sie im Tab „Qualitätskontrolle" ein.</div>';
+    return;
+  }
+  el.innerHTML = `
+    ${h ? `<div style="margin-bottom:${m ? '10px' : '0'}"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Hendrik</div><div style="font-size:13px;white-space:pre-wrap">${escHtml(h)}</div></div>` : ''}
+    ${m ? `<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Michel</div><div style="font-size:13px;white-space:pre-wrap">${escHtml(m)}</div></div>` : ''}
+  `;
+}
+
 function renderNetwork() {
   const grid = document.getElementById('networkGrid');
   const sorted = [...networkCountries].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -3110,6 +3205,7 @@ async function loadDashboard() {
   renderDashboardDate();
   loadDashboardTodayMatches();
   loadDashboardTasksToday();
+  renderDashboardFocusTheme();
   loadDashboardTopNews();
   loadDashboardGeneralNews();
 }
