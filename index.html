@@ -688,6 +688,11 @@
       color: var(--muted);
       margin-top: 8px;
     }
+    .zahlen-posts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
     @media (max-width: 768px) {
       .dashboard-widget-body { max-height: none; }
     }
@@ -1455,14 +1460,16 @@
     </div>
   </div>
 
-  <!-- ZAHLEN DER WOCHE (Metriken-Auswertung, Inhalt folgt) -->
+  <!-- ZAHLEN DER WOCHE (Metriken-Auswertung; Beiträge werden automatisch aus dem Content Plan übernommen) -->
   <div id="zahlenView" style="display:none">
     <div class="spielplan-header">
       <div class="spielplan-month-nav">
         <h2>📊 Zahlen der Woche</h2>
       </div>
+      <span style="color:var(--muted);font-size:13px" id="zahlenPostsCount"></span>
     </div>
-    <div style="color:var(--muted);font-size:13px">Noch nicht befüllt.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Automatisch aus dem Content Plan übernommen: alle Beiträge dieser Woche, die als gepostet markiert wurden.</div>
+    <div id="zahlenPostsList" class="zahlen-posts-grid"></div>
   </div>
 </main>
 
@@ -1868,7 +1875,7 @@ function switchTab(tab) {
   } else if (tab === 'nationalmannschaft') {
     renderNationalmannschaft();
   } else if (tab === 'zahlen') {
-    // Inhalt folgt.
+    // Live über den weekQ-Listener in initWochenplanRead() befüllt.
   } else {
     renderStats();
     renderTable();
@@ -3133,11 +3140,58 @@ async function initWochenplanRead() {
       document.getElementById('dashboardTodayContent').innerHTML =
         `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(err.message)}</div>`;
     });
+
+    const weekId = currentWeekMonday();
+    const weekQ = fs.query(fs.collection(wochenplanDb, 'posts'), fs.where('weekId', '==', weekId));
+    fs.onSnapshot(weekQ, (snap) => {
+      renderZahlenPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => {
+      console.error('week posts listener error', err);
+      document.getElementById('zahlenPostsList').innerHTML =
+        `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(err.message)}</div>`;
+    });
   } catch (err) {
     console.error('wochenplan init error', err);
     document.getElementById('dashboardTodayContent').innerHTML =
       `<div class="dashboard-empty">Wochenplan konnte nicht geladen werden</div>`;
   }
+}
+
+function currentWeekMonday() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  monday.setHours(0, 0, 0, 0);
+  return localDateStr(monday);
+}
+
+function renderZahlenPosts(posts) {
+  const el = document.getElementById('zahlenPostsList');
+  const countEl = document.getElementById('zahlenPostsCount');
+  if (!el) return;
+  const posted = posts.filter(p => p.done || p.status === 'Gepostet');
+  if (countEl) countEl.textContent = posted.length ? `${posted.length} gepostet diese Woche` : '';
+  if (posted.length === 0) {
+    el.innerHTML = '<div class="dashboard-empty">Diese Woche wurde noch nichts als gepostet markiert.</div>';
+    return;
+  }
+  posted.sort((a, b) => (a.day || '').localeCompare(b.day || '') || (a.time || '').localeCompare(b.time || ''));
+  el.innerHTML = posted.map(p => {
+    const badge = WOCHENPLAN_PLATFORM_BADGES[p.platform] || { text: (p.platform || '?').slice(0, 2), style: 'background:var(--surface);' };
+    const statusColor = WOCHENPLAN_STATUS_COLORS[p.status] || 'var(--muted)';
+    const dayLabel = p.day ? new Date(p.day + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '';
+    return `<div class="today-content-card done">
+      <div class="today-content-head">
+        <span class="today-content-badge" style="${badge.style}">${badge.text}</span>
+        <span class="today-content-time">${escHtml(dayLabel)}${p.time ? ' · ' + escHtml(p.time) : ''}</span>
+        <span class="today-content-status" style="color:${statusColor}">${escHtml(p.status || 'Idee')}</span>
+      </div>
+      <div class="today-content-text">${escHtml(p.text || '(kein Text)')}</div>
+      ${p.owner ? `<div class="today-content-owner">👤 ${escHtml(p.owner)}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function renderTodayContent(posts) {
