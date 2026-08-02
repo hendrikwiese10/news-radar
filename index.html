@@ -1496,6 +1496,13 @@
         </div>
       </div>
     </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">🔍 KI-Wochenanalyse</div>
+        <button id="analyzeWeekBtn" class="btn btn-primary btn-sm" onclick="runWeekAnalysis()">Analyse starten</button>
+      </div>
+      <div id="analyzeWeekResult" style="font-size:13px;color:var(--muted);white-space:pre-wrap;line-height:1.6"></div>
+    </div>
     <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Automatisch aus dem Content Plan übernommen: alle Beiträge dieser Woche, die als gepostet markiert wurden.</div>
     <div id="zahlenPostsList" class="zahlen-posts-grid"></div>
   </div>
@@ -3404,6 +3411,63 @@ function renderZahlenPosts(posts) {
       </div>
     </div>`;
   }).join('');
+}
+
+async function runWeekAnalysis() {
+  const btn = document.getElementById('analyzeWeekBtn');
+  const resultEl = document.getElementById('analyzeWeekResult');
+
+  const posts = currentWeekPosts
+    .map(p => ({ post: p, m: postMetrics[p.id] }))
+    .filter(({ m }) => m && m.reach != null)
+    .map(({ post, m }) => {
+      const engagement = (m.likes || 0) + (m.comments || 0) + (m.shares || 0) + (m.saves || 0);
+      return {
+        platform: post.platform,
+        title: post.text || '(kein Text)',
+        day: post.day,
+        time: post.time || null,
+        format: m.format || null,
+        reach: m.reach,
+        avgWatchTime: m.avgWatchTime || null,
+        videoLength: m.videoLength || null,
+        likes: m.likes ?? 0,
+        comments: m.comments ?? 0,
+        shares: m.shares ?? 0,
+        saves: m.saves ?? 0,
+        newFollowers: m.newFollowers ?? null,
+        trafficSource: m.trafficSource || null,
+        engagementRate: m.reach ? +(engagement / m.reach * 100).toFixed(2) : null,
+      };
+    });
+
+  if (posts.length === 0) {
+    showToast('Noch keine Post-Metriken erfasst', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Analysiere…';
+  resultEl.textContent = '';
+
+  try {
+    const res = await fetch('/api/analyze-week', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ posts }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Analyse fehlgeschlagen');
+    resultEl.textContent = (data.refused || !data.analysis)
+      ? 'Die Analyse konnte nicht erstellt werden.'
+      : data.analysis;
+  } catch (err) {
+    showToast('Fehler bei der Analyse: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 function renderTodayContent(posts) {

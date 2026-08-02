@@ -16,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api'))
 from spielplan import get_club_matches
 from nation_events import get_nation_events
+from analyze_week import analyze_week
 
 PORT = 3456
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,11 +28,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def send_cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
 
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_cors()
+        self.end_headers()
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+
+        # ── Zahlen der Woche: KI-Analyse (Top-Post/Flop-Post) ────────────────
+        if parsed.path in ('/analyze-week', '/api/analyze-week'):
+            length = int(self.headers.get('Content-Length', 0) or 0)
+            raw = self.rfile.read(length) if length else b''
+            try:
+                body = json.loads(raw.decode('utf-8')) if raw else {}
+            except json.JSONDecodeError:
+                self._json(400, {'error': 'Ungültiges JSON'})
+                return
+
+            posts = body.get('posts')
+            if not posts:
+                self._json(400, {'error': 'Keine Posts übergeben'})
+                return
+            if not os.environ.get('ANTHROPIC_API_KEY'):
+                self._json(500, {'error': 'ANTHROPIC_API_KEY ist nicht konfiguriert'})
+                return
+
+            try:
+                analysis = analyze_week(posts)
+                if analysis is None:
+                    self._json(200, {'analysis': None, 'refused': True})
+                    return
+                self._json(200, {'analysis': analysis})
+            except Exception as e:
+                self._json(500, {'error': str(e)})
+            return
+
+        self.send_response(404)
         self.end_headers()
 
     def do_GET(self):
