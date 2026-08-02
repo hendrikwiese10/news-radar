@@ -1468,6 +1468,34 @@
       </div>
       <span style="color:var(--muted);font-size:13px" id="zahlenPostsCount"></span>
     </div>
+    <div class="aufgabenplan-columns" style="margin-bottom:20px">
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title">📸 Follower Instagram</div>
+        <div class="form-row" style="margin-bottom:0">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Wochenanfang</label>
+            <input id="zfIgStart" type="number" min="0" placeholder="z.B. 4200" />
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Wochenende</label>
+            <input id="zfIgEnd" type="number" min="0" placeholder="z.B. 4260" />
+          </div>
+        </div>
+      </div>
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title">🎵 Follower TikTok</div>
+        <div class="form-row" style="margin-bottom:0">
+          <div class="form-group" style="margin-bottom:0">
+            <label>Wochenanfang</label>
+            <input id="zfTtStart" type="number" min="0" placeholder="z.B. 1800" />
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Wochenende</label>
+            <input id="zfTtEnd" type="number" min="0" placeholder="z.B. 1850" />
+          </div>
+        </div>
+      </div>
+    </div>
     <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Automatisch aus dem Content Plan übernommen: alle Beiträge dieser Woche, die als gepostet markiert wurden.</div>
     <div id="zahlenPostsList" class="zahlen-posts-grid"></div>
   </div>
@@ -1547,6 +1575,79 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeMonatsplanModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="saveMonatsplanEvent()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- POST-METRIKEN MODAL (Zahlen der Woche) -->
+<div class="modal-overlay" id="postMetricsModalOverlay">
+  <div class="modal" style="width:min(480px, calc(100vw - 32px))">
+    <h2>Post bewerten</h2>
+    <p id="postMetricsSubtitle" style="color:var(--muted);font-size:13px;margin:-8px 0 14px"></p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Format</label>
+        <select id="pmFormat">
+          <option value="">– keins –</option>
+          <option value="Reel">Reel</option>
+          <option value="Karussell">Karussell</option>
+          <option value="Foto-Post">Foto-Post</option>
+          <option value="TikTok-Video">TikTok-Video</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Traffic-Quelle</label>
+        <select id="pmTrafficSource">
+          <option value="">– unbekannt –</option>
+          <option value="Explore/For You">Explore/For You</option>
+          <option value="Profil">Profil</option>
+          <option value="Feed bestehender Follower">Feed bestehender Follower</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Reichweite (Reach/Views)</label>
+        <input id="pmReach" type="number" min="0" placeholder="z.B. 4200" />
+      </div>
+      <div class="form-group">
+        <label>Neue Follower durch diesen Post</label>
+        <input id="pmNewFollowers" type="number" min="0" placeholder="z.B. 12" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Ø Wiedergabedauer</label>
+        <input id="pmAvgWatchTime" placeholder="z.B. 0:12" />
+      </div>
+      <div class="form-group">
+        <label>Tatsächliche Videolänge</label>
+        <input id="pmVideoLength" placeholder="z.B. 0:30" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Likes</label>
+        <input id="pmLikes" type="number" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Kommentare</label>
+        <input id="pmComments" type="number" min="0" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Shares</label>
+        <input id="pmShares" type="number" min="0" />
+      </div>
+      <div class="form-group">
+        <label>Saves</label>
+        <input id="pmSaves" type="number" min="0" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closePostMetricsModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="savePostMetrics()">Speichern</button>
     </div>
   </div>
 </div>
@@ -1757,6 +1858,8 @@ async function initFirebase() {
     await seedNationsIfNeeded();
     subscribeNations();
     subscribeQualityControl();
+    subscribePostMetrics();
+    subscribeWeeklyFollowers();
   } catch (err) {
     console.error(err);
     showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
@@ -2690,6 +2793,101 @@ document.getElementById('qcMichel').addEventListener('input', (e) => {
   qcSaveTimerMichel = setTimeout(() => saveQualityControlField('michel', e.target.value), 500);
 });
 
+// ─── ZAHLEN DER WOCHE: POST-METRIKEN & WÖCHENTLICHE FOLLOWER-ZAHLEN ─────────
+const PM_FIELDS = ['format', 'trafficSource', 'reach', 'newFollowers', 'avgWatchTime', 'videoLength', 'likes', 'comments', 'shares', 'saves'];
+const PM_NUMBER_FIELDS = ['reach', 'newFollowers', 'likes', 'comments', 'shares', 'saves'];
+let postMetrics = {}; // postId -> metrics object
+let unsubscribePostMetrics = null;
+let editingMetricsPostId = null;
+
+function subscribePostMetrics() {
+  if (unsubscribePostMetrics) unsubscribePostMetrics();
+  unsubscribePostMetrics = fsOnSnapshot(fsCollection(db, 'postMetrics'), (snap) => {
+    postMetrics = {};
+    snap.forEach(d => { postMetrics[d.id] = d.data(); });
+    if (activeTab === 'zahlen') renderZahlenPosts(currentWeekPosts);
+  }, (err) => console.error('post metrics listener error', err));
+}
+
+function openPostMetricsModal(postId) {
+  editingMetricsPostId = postId;
+  const post = currentWeekPosts.find(p => p.id === postId);
+  let subtitle = '';
+  if (post) {
+    const badge = WOCHENPLAN_PLATFORM_BADGES[post.platform];
+    const platformLabel = badge ? badge.text : (post.platform || '?');
+    const dayLabel = post.day ? new Date(post.day + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '';
+    subtitle = `${platformLabel} · ${dayLabel}${post.time ? ' ' + post.time : ''} – ${post.text || '(kein Text)'}`;
+  }
+  document.getElementById('postMetricsSubtitle').textContent = subtitle;
+  const existing = postMetrics[postId] || {};
+  document.getElementById('pmFormat').value = existing.format || '';
+  document.getElementById('pmTrafficSource').value = existing.trafficSource || '';
+  document.getElementById('pmReach').value = existing.reach ?? '';
+  document.getElementById('pmNewFollowers').value = existing.newFollowers ?? '';
+  document.getElementById('pmAvgWatchTime').value = existing.avgWatchTime || '';
+  document.getElementById('pmVideoLength').value = existing.videoLength || '';
+  document.getElementById('pmLikes').value = existing.likes ?? '';
+  document.getElementById('pmComments').value = existing.comments ?? '';
+  document.getElementById('pmShares').value = existing.shares ?? '';
+  document.getElementById('pmSaves').value = existing.saves ?? '';
+  document.getElementById('postMetricsModalOverlay').classList.add('open');
+}
+
+function closePostMetricsModal() {
+  document.getElementById('postMetricsModalOverlay').classList.remove('open');
+  editingMetricsPostId = null;
+}
+
+function savePostMetrics() {
+  if (!editingMetricsPostId) return;
+  const data = {
+    format: document.getElementById('pmFormat').value || null,
+    trafficSource: document.getElementById('pmTrafficSource').value || null,
+    reach: parseInt(document.getElementById('pmReach').value) || null,
+    newFollowers: parseInt(document.getElementById('pmNewFollowers').value) || null,
+    avgWatchTime: document.getElementById('pmAvgWatchTime').value.trim() || null,
+    videoLength: document.getElementById('pmVideoLength').value.trim() || null,
+    likes: parseInt(document.getElementById('pmLikes').value) || null,
+    comments: parseInt(document.getElementById('pmComments').value) || null,
+    shares: parseInt(document.getElementById('pmShares').value) || null,
+    saves: parseInt(document.getElementById('pmSaves').value) || null,
+  };
+  fsSetDoc(fsDoc(db, 'postMetrics', editingMetricsPostId), data, { merge: true })
+    .then(() => { showToast('Metriken gespeichert', 'success'); closePostMetricsModal(); })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+let weeklyFollowers = {};
+let unsubscribeWeeklyFollowers = null;
+let zfSaveTimers = {};
+
+function subscribeWeeklyFollowers() {
+  if (unsubscribeWeeklyFollowers) unsubscribeWeeklyFollowers();
+  const weekId = currentWeekMonday();
+  unsubscribeWeeklyFollowers = fsOnSnapshot(fsDoc(db, 'weeklyFollowers', weekId), (snap) => {
+    weeklyFollowers = snap.exists() ? snap.data() : {};
+    [['zfIgStart', 'igStart'], ['zfIgEnd', 'igEnd'], ['zfTtStart', 'ttStart'], ['zfTtEnd', 'ttEnd']].forEach(([elId, field]) => {
+      const el = document.getElementById(elId);
+      const val = weeklyFollowers[field] ?? '';
+      if (document.activeElement !== el && el.value !== String(val)) el.value = val;
+    });
+  }, (err) => console.error('weekly followers listener error', err));
+}
+
+function saveWeeklyFollowerField(field, value) {
+  const weekId = currentWeekMonday();
+  fsSetDoc(fsDoc(db, 'weeklyFollowers', weekId), { [field]: parseInt(value) || null }, { merge: true })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+[['zfIgStart', 'igStart'], ['zfIgEnd', 'igEnd'], ['zfTtStart', 'ttStart'], ['zfTtEnd', 'ttEnd']].forEach(([elId, field]) => {
+  document.getElementById(elId).addEventListener('input', (e) => {
+    clearTimeout(zfSaveTimers[field]);
+    zfSaveTimers[field] = setTimeout(() => saveWeeklyFollowerField(field, e.target.value), 500);
+  });
+});
+
 function renderDashboardFocusTheme() {
   const el = document.getElementById('dashboardFocusTheme');
   const countEl = document.getElementById('dashboardFocusThemeCount');
@@ -3119,6 +3317,7 @@ const WOCHENPLAN_STATUS_COLORS = {
 };
 
 let wochenplanDb = null;
+let currentWeekPosts = [];
 
 async function initWochenplanRead() {
   try {
@@ -3172,6 +3371,7 @@ function renderZahlenPosts(posts) {
   const countEl = document.getElementById('zahlenPostsCount');
   if (!el) return;
   const posted = posts.filter(p => p.done || p.status === 'Gepostet');
+  currentWeekPosts = posted;
   if (countEl) countEl.textContent = posted.length ? `${posted.length} gepostet diese Woche` : '';
   if (posted.length === 0) {
     el.innerHTML = '<div class="dashboard-empty">Diese Woche wurde noch nichts als gepostet markiert.</div>';
@@ -3182,6 +3382,14 @@ function renderZahlenPosts(posts) {
     const badge = WOCHENPLAN_PLATFORM_BADGES[p.platform] || { text: (p.platform || '?').slice(0, 2), style: 'background:var(--surface);' };
     const statusColor = WOCHENPLAN_STATUS_COLORS[p.status] || 'var(--muted)';
     const dayLabel = p.day ? new Date(p.day + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '';
+    const m = postMetrics[p.id];
+    const summaryParts = [];
+    if (m) {
+      if (m.format) summaryParts.push(escHtml(m.format));
+      if (m.reach != null) summaryParts.push('👁 ' + m.reach.toLocaleString('de-DE'));
+      if (m.likes != null) summaryParts.push('❤️ ' + m.likes.toLocaleString('de-DE'));
+      if (m.comments != null) summaryParts.push('💬 ' + m.comments.toLocaleString('de-DE'));
+    }
     return `<div class="today-content-card done">
       <div class="today-content-head">
         <span class="today-content-badge" style="${badge.style}">${badge.text}</span>
@@ -3190,6 +3398,10 @@ function renderZahlenPosts(posts) {
       </div>
       <div class="today-content-text">${escHtml(p.text || '(kein Text)')}</div>
       ${p.owner ? `<div class="today-content-owner">👤 ${escHtml(p.owner)}</div>` : ''}
+      ${summaryParts.length ? `<div class="today-content-owner">${summaryParts.join(' · ')}</div>` : ''}
+      <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="openPostMetricsModal('${p.id}')">📊 ${m ? 'Metriken bearbeiten' : 'Bewerten'}</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -3599,10 +3811,13 @@ document.getElementById('monatsplanModalOverlay').addEventListener('click', e =>
 document.getElementById('networkCountryModalOverlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) closeNetworkCountryModal();
 });
+document.getElementById('postMetricsModalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closePostMetricsModal();
+});
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeDrawer(); closeModal(); closeMonatsplanModal(); }
+  if (e.key === 'Escape') { closeDrawer(); closeModal(); closeMonatsplanModal(); closePostMetricsModal(); }
 });
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
