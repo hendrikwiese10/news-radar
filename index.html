@@ -1464,9 +1464,14 @@
   <div id="zahlenView" style="display:none">
     <div class="spielplan-header">
       <div class="spielplan-month-nav">
-        <h2>📊 Zahlen der Woche</h2>
+        <button class="btn btn-ghost btn-icon" onclick="shiftZahlenWeek(-1)">‹</button>
+        <h2 id="zahlenWeekLabel">📊 –</h2>
+        <button class="btn btn-ghost btn-icon" onclick="shiftZahlenWeek(1)">›</button>
       </div>
-      <span style="color:var(--muted);font-size:13px" id="zahlenPostsCount"></span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-ghost btn-sm" onclick="goToCurrentZahlenWeek()">Aktuelle Woche</button>
+        <span style="color:var(--muted);font-size:13px" id="zahlenPostsCount"></span>
+      </div>
     </div>
     <div class="aufgabenplan-columns" style="margin-bottom:20px">
       <div class="aufgabenplan-person-column">
@@ -1866,7 +1871,7 @@ async function initFirebase() {
     subscribeNations();
     subscribeQualityControl();
     subscribePostMetrics();
-    subscribeWeeklyFollowers();
+    subscribeWeeklyFollowers(localDateStr(zahlenWeekMonday));
   } catch (err) {
     console.error(err);
     showToast('Verbindung zur Datenbank fehlgeschlagen: ' + err.message, 'error');
@@ -2869,9 +2874,8 @@ let weeklyFollowers = {};
 let unsubscribeWeeklyFollowers = null;
 let zfSaveTimers = {};
 
-function subscribeWeeklyFollowers() {
+function subscribeWeeklyFollowers(weekId) {
   if (unsubscribeWeeklyFollowers) unsubscribeWeeklyFollowers();
-  const weekId = currentWeekMonday();
   unsubscribeWeeklyFollowers = fsOnSnapshot(fsDoc(db, 'weeklyFollowers', weekId), (snap) => {
     weeklyFollowers = snap.exists() ? snap.data() : {};
     [['zfIgStart', 'igStart'], ['zfIgEnd', 'igEnd'], ['zfTtStart', 'ttStart'], ['zfTtEnd', 'ttEnd']].forEach(([elId, field]) => {
@@ -2883,7 +2887,7 @@ function subscribeWeeklyFollowers() {
 }
 
 function saveWeeklyFollowerField(field, value) {
-  const weekId = currentWeekMonday();
+  const weekId = localDateStr(zahlenWeekMonday);
   fsSetDoc(fsDoc(db, 'weeklyFollowers', weekId), { [field]: parseInt(value) || null }, { merge: true })
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
@@ -3325,6 +3329,23 @@ const WOCHENPLAN_STATUS_COLORS = {
 
 let wochenplanDb = null;
 let currentWeekPosts = [];
+let wpFs = null; // hält die importierten Firestore-Funktionen für spätere Re-Subscribes (Wochennavigation)
+let unsubscribeZahlenWeek = null;
+
+function mondayOf(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function currentWeekMonday() {
+  return localDateStr(mondayOf(new Date()));
+}
+
+let zahlenWeekMonday = mondayOf(new Date());
 
 async function initWochenplanRead() {
   try {
@@ -3334,6 +3355,7 @@ async function initWochenplanRead() {
 
     const wpApp = initializeApp(WOCHENPLAN_FIREBASE_CONFIG, 'wochenplanReader');
     wochenplanDb = fs.getFirestore(wpApp);
+    wpFs = fs;
     const wpAuth = am.getAuth(wpApp);
     await am.signInAnonymously(wpAuth);
 
@@ -3347,15 +3369,8 @@ async function initWochenplanRead() {
         `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(err.message)}</div>`;
     });
 
-    const weekId = currentWeekMonday();
-    const weekQ = fs.query(fs.collection(wochenplanDb, 'posts'), fs.where('weekId', '==', weekId));
-    fs.onSnapshot(weekQ, (snap) => {
-      renderZahlenPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => {
-      console.error('week posts listener error', err);
-      document.getElementById('zahlenPostsList').innerHTML =
-        `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(err.message)}</div>`;
-    });
+    renderZahlenWeekLabel();
+    subscribeZahlenWeek(localDateStr(zahlenWeekMonday));
   } catch (err) {
     console.error('wochenplan init error', err);
     document.getElementById('dashboardTodayContent').innerHTML =
@@ -3363,14 +3378,43 @@ async function initWochenplanRead() {
   }
 }
 
-function currentWeekMonday() {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d);
-  monday.setDate(diff);
-  monday.setHours(0, 0, 0, 0);
-  return localDateStr(monday);
+function subscribeZahlenWeek(weekId) {
+  if (!wpFs || !wochenplanDb) return;
+  if (unsubscribeZahlenWeek) unsubscribeZahlenWeek();
+  const weekQ = wpFs.query(wpFs.collection(wochenplanDb, 'posts'), wpFs.where('weekId', '==', weekId));
+  unsubscribeZahlenWeek = wpFs.onSnapshot(weekQ, (snap) => {
+    renderZahlenPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  }, (err) => {
+    console.error('week posts listener error', err);
+    document.getElementById('zahlenPostsList').innerHTML =
+      `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(err.message)}</div>`;
+  });
+}
+
+function renderZahlenWeekLabel() {
+  const start = zahlenWeekMonday;
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const fmt = (d) => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  document.getElementById('zahlenWeekLabel').textContent = `📊 ${fmt(start)} – ${fmt(end)} ${end.getFullYear()}`;
+}
+
+function shiftZahlenWeek(delta) {
+  const d = new Date(zahlenWeekMonday);
+  d.setDate(d.getDate() + delta * 7);
+  zahlenWeekMonday = d;
+  renderZahlenWeekLabel();
+  const weekId = localDateStr(zahlenWeekMonday);
+  subscribeZahlenWeek(weekId);
+  subscribeWeeklyFollowers(weekId);
+}
+
+function goToCurrentZahlenWeek() {
+  zahlenWeekMonday = mondayOf(new Date());
+  renderZahlenWeekLabel();
+  const weekId = localDateStr(zahlenWeekMonday);
+  subscribeZahlenWeek(weekId);
+  subscribeWeeklyFollowers(weekId);
 }
 
 function renderZahlenPosts(posts) {
@@ -3379,9 +3423,9 @@ function renderZahlenPosts(posts) {
   if (!el) return;
   const posted = posts.filter(p => p.done || p.status === 'Gepostet');
   currentWeekPosts = posted;
-  if (countEl) countEl.textContent = posted.length ? `${posted.length} gepostet diese Woche` : '';
+  if (countEl) countEl.textContent = posted.length ? `${posted.length} gepostet` : '';
   if (posted.length === 0) {
-    el.innerHTML = '<div class="dashboard-empty">Diese Woche wurde noch nichts als gepostet markiert.</div>';
+    el.innerHTML = '<div class="dashboard-empty">In dieser Woche wurde nichts als gepostet markiert.</div>';
     return;
   }
   posted.sort((a, b) => (a.day || '').localeCompare(b.day || '') || (a.time || '').localeCompare(b.time || ''));
