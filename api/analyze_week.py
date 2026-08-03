@@ -32,7 +32,7 @@ def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048, o
         method='POST',
     )
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=180) as r:
             return json.loads(r.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         detail = e.read().decode('utf-8', errors='replace')
@@ -91,7 +91,15 @@ desselben Formats):
   klar als Vermutung kennzeichnen, nicht als Fakt. Leerstring falls
   unklar oder nicht relevant.
 Jedes Feld maximal 1-2 kurze Sätze - keine Romane, das sind Stichpunkt-
-artige Kurzeinschätzungen pro Post."""
+artige Kurzeinschätzungen pro Post.
+
+WICHTIG: postInsights MUSS genau einen Eintrag pro Post mit
+weekId == targetWeek enthalten (Anzahl Einträge = Anzahl Posts der
+Fokus-Woche in der übergebenen Liste, per postId zuordenbar). Ein
+leeres postInsights-Array ist nur zulässig, wenn die Fokus-Woche
+selbst keine Posts enthält. Auch wenn zu einem Post wenig auffällt,
+trag ihn trotzdem mit möglichst vielen leeren Feldern ein - nie
+komplett weglassen."""
 
 POST_INSIGHT_SCHEMA = {
     'type': 'object',
