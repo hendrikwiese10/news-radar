@@ -33,7 +33,7 @@ def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048):
         method='POST',
     )
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=180) as r:
             return json.loads(r.read().decode('utf-8'))
     except urllib.error.HTTPError as e:
         detail = e.read().decode('utf-8', errors='replace')

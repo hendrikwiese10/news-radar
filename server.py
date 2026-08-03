@@ -39,7 +39,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
 
         # ── Zahlen der Woche: KI-Analyse (Top-Post/Flop-Post) ────────────────
-        if parsed.path in ('/analyze-week', '/api/analyze-week'):
+        if parsed.path in ('/analyze_week', '/api/analyze_week'):
             length = int(self.headers.get('Content-Length', 0) or 0)
             raw = self.rfile.read(length) if length else b''
             try:
@@ -89,7 +89,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # ── Nationalmannschaft: KI-Websuche nach Terminen ────────────────────
-        if parsed.path in ('/nation-events', '/api/nation-events'):
+        if parsed.path in ('/nation_events', '/api/nation_events'):
             params = urllib.parse.parse_qs(parsed.query)
             nation = params.get('nation', [''])[0]
             age_group = params.get('ageGroup', [''])[0]

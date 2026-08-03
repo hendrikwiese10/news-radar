@@ -3234,7 +3234,7 @@ async function runNationEventSearch() {
   btn.textContent = '🔎 Suche läuft…';
 
   try {
-    const url = `/api/nation-events?nation=${encodeURIComponent(nation.name)}&ageGroup=${encodeURIComponent(selectedAgeGroup)}`;
+    const url = `/api/nation_events?nation=${encodeURIComponent(nation.name)}&ageGroup=${encodeURIComponent(selectedAgeGroup)}`;
     const res = await fetch(url);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Websuche fehlgeschlagen');
@@ -3496,7 +3496,7 @@ async function runWeekAnalysis() {
   resultEl.textContent = '';
 
   try {
-    const res = await fetch('/api/analyze-week', {
+    const res = await fetch('/api/analyze_week', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ posts }),
