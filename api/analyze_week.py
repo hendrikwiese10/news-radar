@@ -136,7 +136,7 @@ def analyze_week(posts, target_week=None):
     response = call_claude(
         user_content=user_content,
         system_prompt=SYSTEM_PROMPT,
-        max_tokens=4096,
+        max_tokens=12000,
         output_format={'type': 'json_schema', 'schema': POST_INSIGHT_SCHEMA},
     )
     if response.get('stop_reason') == 'refusal':
