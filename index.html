@@ -3416,38 +3416,45 @@ function renderZahlenPosts(posts) {
   }).join('');
 }
 
+// Holt ALLE bisher als gepostet markierten Beiträge über alle Wochen hinweg
+// (nicht nur die aktuell angezeigte) - Grundlage für Wochen-über-Wochen-
+// Vergleiche in der KI-Analyse. Einmaliger Abruf (kein Live-Listener), da
+// nur bei Klick auf "Analyse starten" gebraucht.
+async function fetchAllTrackedPosts() {
+  if (!wpFs || !wochenplanDb) return [];
+  const snap = await wpFs.getDocs(wpFs.collection(wochenplanDb, 'posts'));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(p => p.done || p.status === 'Gepostet');
+}
+
+function buildAnalysisPost(post) {
+  const m = postMetrics[post.id];
+  if (!m || m.reach == null) return null;
+  const engagement = (m.likes || 0) + (m.comments || 0) + (m.shares || 0) + (m.saves || 0);
+  return {
+    weekId: post.weekId || null,
+    platform: post.platform,
+    title: post.text || '(kein Text)',
+    day: post.day,
+    time: post.time || null,
+    format: m.format || null,
+    reach: m.reach,
+    avgWatchTime: m.avgWatchTime || null,
+    videoLength: m.videoLength || null,
+    likes: m.likes ?? 0,
+    comments: m.comments ?? 0,
+    shares: m.shares ?? 0,
+    saves: m.saves ?? 0,
+    newFollowers: m.newFollowers ?? null,
+    trafficSource: m.trafficSource || null,
+    engagementRate: m.reach ? +(engagement / m.reach * 100).toFixed(2) : null,
+  };
+}
+
 async function runWeekAnalysis() {
   const btn = document.getElementById('analyzeWeekBtn');
   const resultEl = document.getElementById('analyzeWeekResult');
-
-  const posts = currentWeekPosts
-    .map(p => ({ post: p, m: postMetrics[p.id] }))
-    .filter(({ m }) => m && m.reach != null)
-    .map(({ post, m }) => {
-      const engagement = (m.likes || 0) + (m.comments || 0) + (m.shares || 0) + (m.saves || 0);
-      return {
-        platform: post.platform,
-        title: post.text || '(kein Text)',
-        day: post.day,
-        time: post.time || null,
-        format: m.format || null,
-        reach: m.reach,
-        avgWatchTime: m.avgWatchTime || null,
-        videoLength: m.videoLength || null,
-        likes: m.likes ?? 0,
-        comments: m.comments ?? 0,
-        shares: m.shares ?? 0,
-        saves: m.saves ?? 0,
-        newFollowers: m.newFollowers ?? null,
-        trafficSource: m.trafficSource || null,
-        engagementRate: m.reach ? +(engagement / m.reach * 100).toFixed(2) : null,
-      };
-    });
-
-  if (posts.length === 0) {
-    showToast('Noch keine Post-Metriken erfasst', 'error');
-    return;
-  }
 
   btn.disabled = true;
   const originalLabel = btn.textContent;
@@ -3455,10 +3462,20 @@ async function runWeekAnalysis() {
   resultEl.textContent = '';
 
   try {
+    const allPosts = await fetchAllTrackedPosts();
+    const posts = allPosts.map(buildAnalysisPost).filter(Boolean);
+
+    if (posts.length === 0) {
+      showToast('Noch keine Post-Metriken erfasst', 'error');
+      return;
+    }
+
+    const targetWeek = localDateStr(zahlenWeekMonday);
+
     const res = await fetch('/api/analyze_week', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ posts }),
+      body: JSON.stringify({ posts, targetWeek }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Analyse fehlgeschlagen');

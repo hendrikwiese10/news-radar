@@ -48,6 +48,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
 
             posts = body.get('posts')
+            target_week = body.get('targetWeek')
             if not posts:
                 self._json(400, {'error': 'Keine Posts übergeben'})
                 return
@@ -56,7 +57,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
 
             try:
-                analysis = analyze_week(posts)
+                analysis = analyze_week(posts, target_week)
                 if analysis is None:
                     self._json(200, {'analysis': None, 'refused': True})
                     return
