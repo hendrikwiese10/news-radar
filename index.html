@@ -3288,6 +3288,7 @@ const WOCHENPLAN_STATUS_COLORS = {
 
 let wochenplanDb = null;
 let currentWeekPosts = [];
+let lastPostInsights = {}; // postId -> KI-Kurzeinschätzung der zuletzt für diese Woche gestarteten Analyse
 let wpFs = null; // hält die importierten Firestore-Funktionen für spätere Re-Subscribes (Wochennavigation)
 let unsubscribeZahlenWeek = null;
 
@@ -3363,6 +3364,8 @@ function shiftZahlenWeek(delta) {
   d.setDate(d.getDate() + delta * 7);
   zahlenWeekMonday = d;
   renderZahlenWeekLabel();
+  lastPostInsights = {};
+  document.getElementById('analyzeWeekResult').textContent = '';
   const weekId = localDateStr(zahlenWeekMonday);
   subscribeZahlenWeek(weekId);
   subscribeWeeklyFollowers(weekId);
@@ -3371,6 +3374,8 @@ function shiftZahlenWeek(delta) {
 function goToCurrentZahlenWeek() {
   zahlenWeekMonday = mondayOf(new Date());
   renderZahlenWeekLabel();
+  lastPostInsights = {};
+  document.getElementById('analyzeWeekResult').textContent = '';
   const weekId = localDateStr(zahlenWeekMonday);
   subscribeZahlenWeek(weekId);
   subscribeWeeklyFollowers(weekId);
@@ -3409,11 +3414,27 @@ function renderZahlenPosts(posts) {
       <div class="today-content-text">${escHtml(p.text || '(kein Text)')}</div>
       ${p.owner ? `<div class="today-content-owner">👤 ${escHtml(p.owner)}</div>` : ''}
       ${summaryParts.length ? `<div class="today-content-owner">${summaryParts.join(' · ')}</div>` : ''}
+      ${renderPostInsightHtml(lastPostInsights[p.id])}
       <div style="margin-top:10px">
         <button class="btn btn-ghost btn-sm" onclick="openPostMetricsModal('${p.id}')">📊 ${m ? 'Metriken bearbeiten' : 'Bewerten'}</button>
       </div>
     </div>`;
   }).join('');
+}
+
+function renderPostInsightHtml(insight) {
+  if (!insight) return '';
+  const rows = [
+    ['✅ Gut', insight.wasGut],
+    ['📌 Merken', insight.merken],
+    ['⚠️ Nicht gut', insight.wasNicht],
+    ['👀 Achten', insight.achten],
+    ['🤔 Ursache', insight.ursache],
+  ].filter(([, val]) => val && val.trim());
+  if (!rows.length) return '';
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;display:flex;flex-direction:column;gap:4px">
+    ${rows.map(([label, val]) => `<div><strong style="color:var(--muted)">${label}:</strong> ${escHtml(val)}</div>`).join('')}
+  </div>`;
 }
 
 // Holt ALLE bisher als gepostet markierten Beiträge über alle Wochen hinweg
@@ -3433,6 +3454,7 @@ function buildAnalysisPost(post) {
   if (!m || m.reach == null) return null;
   const engagement = (m.likes || 0) + (m.comments || 0) + (m.shares || 0) + (m.saves || 0);
   return {
+    id: post.id,
     weekId: post.weekId || null,
     platform: post.platform,
     title: post.text || '(kein Text)',
@@ -3479,9 +3501,15 @@ async function runWeekAnalysis() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Analyse fehlgeschlagen');
-    resultEl.textContent = (data.refused || !data.analysis)
-      ? 'Die Analyse konnte nicht erstellt werden.'
-      : data.analysis;
+    if (data.refused || !data.weekSummary) {
+      resultEl.textContent = 'Die Analyse konnte nicht erstellt werden.';
+      lastPostInsights = {};
+    } else {
+      resultEl.textContent = data.weekSummary;
+      lastPostInsights = {};
+      (data.postInsights || []).forEach(insight => { lastPostInsights[insight.postId] = insight; });
+    }
+    renderZahlenPosts(currentWeekPosts);
   } catch (err) {
     showToast('Fehler bei der Analyse: ' + err.message, 'error');
   } finally {

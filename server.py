@@ -37,7 +37,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
 
-        # ── Zahlen der Woche: KI-Analyse (Top-Post/Flop-Post) ────────────────
+        # ── Zahlen der Woche: KI-Analyse (Wochen-Zusammenfassung + Post-Insights) ─
         if parsed.path in ('/analyze_week', '/api/analyze_week'):
             length = int(self.headers.get('Content-Length', 0) or 0)
             raw = self.rfile.read(length) if length else b''
@@ -57,11 +57,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return
 
             try:
-                analysis = analyze_week(posts, target_week)
-                if analysis is None:
-                    self._json(200, {'analysis': None, 'refused': True})
+                result = analyze_week(posts, target_week)
+                if result is None:
+                    self._json(200, {'weekSummary': None, 'postInsights': [], 'refused': True})
                     return
-                self._json(200, {'analysis': analysis})
+                self._json(200, result)
             except Exception as e:
                 self._json(500, {'error': str(e)})
             return
