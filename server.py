@@ -15,7 +15,6 @@ from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api'))
 from spielplan import get_club_matches
-from nation_events import get_nation_events
 from analyze_week import analyze_week
 
 PORT = 3456
@@ -84,26 +83,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 matches = get_club_matches(club)
                 self._json(200, {'matches': matches})
-            except Exception as e:
-                self._json(500, {'error': str(e)})
-            return
-
-        # ── Nationalmannschaft: KI-Websuche nach Terminen ────────────────────
-        if parsed.path in ('/nation_events', '/api/nation_events'):
-            params = urllib.parse.parse_qs(parsed.query)
-            nation = params.get('nation', [''])[0]
-            age_group = params.get('ageGroup', [''])[0]
-
-            if not nation or not age_group:
-                self._json(400, {'error': 'Parameter nation und ageGroup fehlen'})
-                return
-            if not os.environ.get('ANTHROPIC_API_KEY'):
-                self._json(500, {'error': 'ANTHROPIC_API_KEY ist nicht konfiguriert'})
-                return
-
-            try:
-                events = get_nation_events(nation, age_group)
-                self._json(200, {'events': events})
             except Exception as e:
                 self._json(500, {'error': str(e)})
             return
