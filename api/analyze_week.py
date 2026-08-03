@@ -2,7 +2,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 import os
 
-from _claude import call_claude, extract_text
+from claude_client import call_claude, extract_text
 
 SYSTEM_PROMPT = """Du bist Analyst für die Social-Media-Performance von Future Ballers
 (Instagram & TikTok, Content über Nachwuchsfußballtalente Jahrgänge 2010-2012).

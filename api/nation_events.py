@@ -5,7 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 
-from _claude import call_claude, extract_text
+from claude_client import call_claude, extract_text
 
 
 def get_nation_events(nation, age_group):
