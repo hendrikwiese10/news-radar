@@ -48,17 +48,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._json(400, {'error': 'Ungültiges JSON'})
                 return
 
-            posts = body.get('posts')
+            current_week_posts = body.get('currentWeekPosts')
+            historical_stats = body.get('historicalStats')
             target_week = body.get('targetWeek')
-            if not posts:
-                self._json(400, {'error': 'Keine Posts übergeben'})
+            if not current_week_posts:
+                self._json(400, {'error': 'Keine Posts für die Fokus-Woche übergeben'})
                 return
             if not os.environ.get('ANTHROPIC_API_KEY'):
                 self._json(500, {'error': 'ANTHROPIC_API_KEY ist nicht konfiguriert'})
                 return
 
             try:
-                result = analyze_week(posts, target_week)
+                result = analyze_week(current_week_posts, historical_stats, target_week)
                 if result is None:
                     self._json(200, {'weekSummary': None, 'postInsights': [], 'refused': True})
                     return

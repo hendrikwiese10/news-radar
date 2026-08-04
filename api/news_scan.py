@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 
 
-def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048):
+def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048, effort=None):
     api_key = os.environ['ANTHROPIC_API_KEY']
     payload = {
         'model': 'claude-opus-5',
@@ -17,9 +17,16 @@ def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048):
         'messages': [{'role': 'user', 'content': user_content}],
     }
     if system_prompt:
-        payload['system'] = system_prompt
+        # cache_control: die Instruktionen sind bei jedem Scan identisch,
+        # dadurch wird dieser Teil ab dem zweiten Aufruf innerhalb kurzer Zeit
+        # stark günstiger verarbeitet statt komplett neu abgerechnet zu werden.
+        payload['system'] = [
+            {'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}
+        ]
     if tools:
         payload['tools'] = tools
+    if effort:
+        payload['output_config'] = {'effort': effort}
 
     req = urllib.request.Request(
         ANTHROPIC_API_URL,
@@ -52,15 +59,10 @@ def extract_text(response):
 CATEGORIES = ['Transfer', 'Debüt', 'Rekord', 'Auszeichnung', 'Starke Leistung', 'Medienbericht']
 
 
-def build_prompt(players):
-    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    players_json = json.dumps(players, ensure_ascii=False)
-
-    return f"""Heutiges Datum: {today}.
-
-Du unterstützt einen Scout im Nachwuchsfußball (Future Ballers) dabei, absolut
-up to date zu bleiben über die Fußball-Jahrgänge 2010 bis 2012 (Spieler, die
-aktuell ca. 14 bis 16 Jahre alt sind) - weltweit, nicht nur in Deutschland.
+SYSTEM_PROMPT = f"""Du unterstützt einen Scout im Nachwuchsfußball (Future Ballers)
+dabei, absolut up to date zu bleiben über die Fußball-Jahrgänge 2010 bis 2012
+(Spieler, die aktuell ca. 14 bis 16 Jahre alt sind) - weltweit, nicht nur in
+Deutschland.
 
 Gesucht sind aktuelle Ereignisse (idealerweise der letzten 7-14 Tage) aus
 folgenden Kategorien: {', '.join(CATEGORIES)}.
@@ -72,17 +74,14 @@ folgenden Kategorien: {', '.join(CATEGORIES)}.
 - Starke Leistung: Spiele mit vielen Toren/Vorlagen oder auffälligen Statistiken
 - Medienbericht: auffällige Berichterstattung, große Portraits, virale Videos
 
-Du hast ZWEI Aufgaben:
+Du bekommst mit jeder Anfrage das aktuelle Datum und eine Liste bereits beim
+Scout getrackter Spieler (JSON). Du hast ZWEI Aufgaben:
 
-1) Gezielte Suche zu den folgenden bereits beim Scout getrackten Spielern
-   (Liste als JSON beigefügt): prüfe für jeden Spieler aktiv, ob es in den
-   letzten Tagen etwas Neues aus den obigen Kategorien gibt.
-
-Getrackte Spieler:
-{players_json}
+1) Gezielte Suche zu den getrackten Spielern: prüfe für jeden Spieler aktiv,
+   ob es in den letzten Tagen etwas Neues aus den obigen Kategorien gibt.
 
 2) OFFENE Entdeckungssuche (WICHTIGSTER TEIL dieser Aufgabe): suche im Web
-   unabhängig von der obigen Liste nach herausragenden, wirklich
+   unabhängig von der Spielerliste nach herausragenden, wirklich
    außergewöhnlichen Storys zu Spielern der Jahrgänge 2010-2012 weltweit -
    auch zu Spielern, die der Scout noch gar nicht auf dem Schirm hat. Der
    Anspruch ist NICHT "irgendeine News", sondern etwas, das ein Scout
@@ -98,7 +97,7 @@ danach, kein Markdown-Codeblock. Jedes Element hat exakt diese Form:
 "nation": "Nationalität oder null", "birthYear": Jahrgang als Zahl oder null,
 "headline": "1 prägnanter Satz, was passiert ist",
 "why": "1 kurzer Satz, warum das bemerkenswert ist",
-"tracked": true wenn der Spieler in der obigen Liste steht sonst false,
+"tracked": true wenn der Spieler in der Spielerliste steht sonst false,
 "sourceTitle": "Titel der Quelle", "sourceUrl": "URL der Quelle"}}
 
 Nur Spieler der Jahrgänge 2010-2012 (bzw. wo der Jahrgang unklar ist, das
@@ -108,13 +107,24 @@ Verlässliches findest, lass ihn weg - erfinde nichts. Wenn du gar nichts
 Verlässliches findest, gib ein leeres Array [] zurück."""
 
 
-def get_news_scan(players):
-    prompt = build_prompt(players)
+def build_user_content(players):
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    players_json = json.dumps(players, ensure_ascii=False)
+    return f"""Heutiges Datum: {today}.
 
+Getrackte Spieler:
+{players_json}
+
+Führe jetzt beide Aufgaben aus deiner Anweisung aus."""
+
+
+def get_news_scan(players):
     response = call_claude(
-        user_content=prompt,
-        tools=[{'type': 'web_search_20260209', 'name': 'web_search', 'max_uses': 20}],
+        user_content=build_user_content(players),
+        system_prompt=SYSTEM_PROMPT,
+        tools=[{'type': 'web_search_20260209', 'name': 'web_search', 'max_uses': 10}],
         max_tokens=4096,
+        effort='medium',
     )
 
     if response.get('stop_reason') == 'refusal':

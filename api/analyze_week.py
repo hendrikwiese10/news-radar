@@ -7,7 +7,7 @@ import urllib.error
 ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 
 
-def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048, output_format=None):
+def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048, output_format=None, effort=None):
     api_key = os.environ['ANTHROPIC_API_KEY']
     payload = {
         'model': 'claude-opus-5',
@@ -15,11 +15,21 @@ def call_claude(user_content, system_prompt=None, tools=None, max_tokens=2048, o
         'messages': [{'role': 'user', 'content': user_content}],
     }
     if system_prompt:
-        payload['system'] = system_prompt
+        # cache_control: der System-Prompt ist bei jedem Aufruf identisch,
+        # dadurch wird er ab dem zweiten Aufruf innerhalb kurzer Zeit stark
+        # günstiger verarbeitet statt komplett neu abgerechnet zu werden.
+        payload['system'] = [
+            {'type': 'text', 'text': system_prompt, 'cache_control': {'type': 'ephemeral'}}
+        ]
     if tools:
         payload['tools'] = tools
+    output_config = {}
     if output_format:
-        payload['output_config'] = {'format': output_format}
+        output_config['format'] = output_format
+    if effort:
+        output_config['effort'] = effort
+    if output_config:
+        payload['output_config'] = output_config
 
     req = urllib.request.Request(
         ANTHROPIC_API_URL,
@@ -52,33 +62,37 @@ def extract_text(response):
 SYSTEM_PROMPT = """Du bist Analyst für die Social-Media-Performance von Future Ballers
 (Instagram & TikTok, Content über Nachwuchsfußballtalente Jahrgänge 2010-2012).
 
-Du bekommst eine Liste ALLER bisher getrackten Posts (JSON), jeweils mit
-eindeutiger id, Woche (weekId = Montag-Datum der jeweiligen Woche),
-Plattform, Format, Metriken und bereits berechneter Engagement Rate
-(= (likes+comments+shares+saves)/reach, in %). Die Liste kann mehrere
-Wochen umfassen - je mehr Wochen vorliegen, desto besser lassen sich
-Trends und Vergleiche ziehen. Eine Fokus-Woche (targetWeek) wird dir
-separat genannt.
+Du bekommst zwei Dinge als JSON:
+1. currentWeekPosts: alle Posts der Fokus-Woche (targetWeek), jeweils mit
+   eindeutiger id, Plattform, Format, Metriken und bereits berechneter
+   Engagement Rate (= (likes+comments+shares+saves)/reach, in %).
+2. historicalStats: eine bereits vorverdichtete Zusammenfassung ALLER
+   vorherigen Wochen (nicht die Rohdaten einzelner Posts), gruppiert nach
+   Format: Anzahl Posts, Ø Reichweite, Ø Engagement Rate und Ø Verhältnis
+   Wiedergabedauer/Videolänge in %. Dazu die Gesamtzahl bisher getrackter
+   Wochen und Posts. Nutze diese Werte als Vergleichsbasis - je mehr
+   historische Wochen vorliegen, desto belastbarer sind Vergleiche.
 
 Aufgabe 1 - weekSummary (Gesamtbild der Fokus-Woche):
-- Vergleiche die Fokus-Woche mit den historischen Daten (falls vorhanden):
-  Liegt z.B. die Ø Wiedergabedauer eines Formats unter dem historischen
-  Durchschnitt dieses Formats? Ist die Reichweite im Vergleich zu
-  vorherigen Wochen gestiegen oder gefallen? Auffälligkeiten bei
-  bestimmten Formaten, Plattformen oder Traffic-Quellen?
+- Vergleiche die Fokus-Woche mit historicalStats (falls totalHistoricalWeeks
+  > 0): Liegt z.B. die Ø Wiedergabedauer eines Formats unter dem
+  historischen Durchschnitt dieses Formats? Ist die Reichweite im
+  Vergleich zum historischen Schnitt gestiegen oder gefallen?
+  Auffälligkeiten bei bestimmten Formaten, Plattformen oder
+  Traffic-Quellen?
 - Gib 2-3 konkrete, umsetzbare Empfehlungen für die kommende Woche.
-- Falls nur eine einzige Woche an Daten vorliegt, weise kurz darauf hin,
-  dass belastbare Trendvergleiche erst mit mehr Wochen möglich sind, und
-  analysiere trotzdem so gut wie möglich.
+- Falls totalHistoricalWeeks 0 ist, weise kurz darauf hin, dass belastbare
+  Trendvergleiche erst mit mehr Wochen möglich sind, und analysiere
+  trotzdem so gut wie möglich anhand der Fokus-Woche allein.
 - Klar strukturiert (kurze Absätze/Stichpunkte), inhaltlich tiefgehend
   statt oberflächlich, keine Einleitung, direkt mit der Analyse beginnen.
 
-Aufgabe 2 - postInsights (ein Eintrag pro Post der Fokus-Woche, NICHT für
-historische Wochen): Für jeden Post der Fokus-Woche eine kurze, konkrete
-Einschätzung anhand seiner Zahlen (Reichweite, Wiedergabedauer vs.
-Videolänge, Interaktionen, Traffic-Quelle, im Vergleich zu den anderen
-Posts der Woche und - falls vorhanden - zum historischen Durchschnitt
-desselben Formats):
+Aufgabe 2 - postInsights (ein Eintrag pro Post aus currentWeekPosts): Für
+jeden Post der Fokus-Woche eine kurze, konkrete Einschätzung anhand seiner
+Zahlen (Reichweite, Wiedergabedauer vs. Videolänge, Interaktionen,
+Traffic-Quelle, im Vergleich zu den anderen Posts der Woche und - falls
+vorhanden - zum historischen Durchschnitt desselben Formats aus
+historicalStats):
 - wasGut: Was lief bei diesem Post gut? Leerstring falls nichts auffällt.
 - merken: Was merken wir uns davon für künftigen Content? Leerstring
   falls nichts.
@@ -93,13 +107,12 @@ desselben Formats):
 Jedes Feld maximal 1-2 kurze Sätze - keine Romane, das sind Stichpunkt-
 artige Kurzeinschätzungen pro Post.
 
-WICHTIG: postInsights MUSS genau einen Eintrag pro Post mit
-weekId == targetWeek enthalten (Anzahl Einträge = Anzahl Posts der
-Fokus-Woche in der übergebenen Liste, per postId zuordenbar). Ein
-leeres postInsights-Array ist nur zulässig, wenn die Fokus-Woche
-selbst keine Posts enthält. Auch wenn zu einem Post wenig auffällt,
-trag ihn trotzdem mit möglichst vielen leeren Feldern ein - nie
-komplett weglassen."""
+WICHTIG: postInsights MUSS genau einen Eintrag pro Post aus
+currentWeekPosts enthalten (Anzahl Einträge = Anzahl Posts in
+currentWeekPosts, per postId zuordenbar). Ein leeres postInsights-Array
+ist nur zulässig, wenn currentWeekPosts selbst leer ist. Auch wenn zu
+einem Post wenig auffällt, trag ihn trotzdem mit möglichst vielen leeren
+Feldern ein - nie komplett weglassen."""
 
 POST_INSIGHT_SCHEMA = {
     'type': 'object',
@@ -131,13 +144,18 @@ POST_INSIGHT_SCHEMA = {
 }
 
 
-def analyze_week(posts, target_week=None):
-    user_content = json.dumps({'targetWeek': target_week, 'posts': posts}, ensure_ascii=False)
+def analyze_week(current_week_posts, historical_stats=None, target_week=None):
+    user_content = json.dumps({
+        'targetWeek': target_week,
+        'currentWeekPosts': current_week_posts,
+        'historicalStats': historical_stats or {'totalHistoricalWeeks': 0, 'totalHistoricalPosts': 0, 'byFormat': {}},
+    }, ensure_ascii=False)
     response = call_claude(
         user_content=user_content,
         system_prompt=SYSTEM_PROMPT,
         max_tokens=12000,
         output_format={'type': 'json_schema', 'schema': POST_INSIGHT_SCHEMA},
+        effort='medium',
     )
     if response.get('stop_reason') == 'refusal':
         return None
@@ -154,17 +172,18 @@ class handler(BaseHTTPRequestHandler):
             self._json(400, {'error': 'Ungültiges JSON'})
             return
 
-        posts = body.get('posts')
+        current_week_posts = body.get('currentWeekPosts')
+        historical_stats = body.get('historicalStats')
         target_week = body.get('targetWeek')
-        if not posts:
-            self._json(400, {'error': 'Keine Posts übergeben'})
+        if not current_week_posts:
+            self._json(400, {'error': 'Keine Posts für die Fokus-Woche übergeben'})
             return
         if not os.environ.get('ANTHROPIC_API_KEY'):
             self._json(500, {'error': 'ANTHROPIC_API_KEY ist nicht konfiguriert'})
             return
 
         try:
-            result = analyze_week(posts, target_week)
+            result = analyze_week(current_week_posts, historical_stats, target_week)
             if result is None:
                 self._json(200, {'weekSummary': None, 'postInsights': [], 'refused': True})
                 return

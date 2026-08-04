@@ -3490,6 +3490,52 @@ function buildAnalysisPost(post) {
   };
 }
 
+function timeStrToSeconds(t) {
+  if (!t) return null;
+  const parts = String(t).split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  return parts.length === 2 ? parts[0] * 60 + parts[1] : parts[0];
+}
+
+// Fasst alle Wochen AUSSER der Fokus-Woche kompakt pro Format zusammen, statt
+// die komplette Roh-Historie mitzuschicken - hält die Anfrage klein, auch wenn
+// die Datenbank über Monate weiterwächst.
+function buildHistoricalStats(posts, targetWeek) {
+  const byFormat = {};
+  const weeks = new Set();
+  let count = 0;
+
+  posts.forEach(p => {
+    if (p.weekId === targetWeek) return;
+    if (p.weekId) weeks.add(p.weekId);
+    count++;
+    const fmt = p.format || 'Unbekannt';
+    if (!byFormat[fmt]) byFormat[fmt] = { postCount: 0, reachSum: 0, erSum: 0, watchRatioSum: 0, watchRatioCount: 0 };
+    const s = byFormat[fmt];
+    s.postCount++;
+    s.reachSum += p.reach || 0;
+    s.erSum += p.engagementRate || 0;
+    const watchSec = timeStrToSeconds(p.avgWatchTime);
+    const lenSec = timeStrToSeconds(p.videoLength);
+    if (watchSec != null && lenSec) {
+      s.watchRatioSum += watchSec / lenSec;
+      s.watchRatioCount++;
+    }
+  });
+
+  const summary = {};
+  Object.entries(byFormat).forEach(([fmt, s]) => {
+    summary[fmt] = {
+      postCount: s.postCount,
+      avgReach: Math.round(s.reachSum / s.postCount),
+      avgEngagementRate: +(s.erSum / s.postCount).toFixed(2),
+      avgWatchRatioPercent: s.watchRatioCount ? +(s.watchRatioSum / s.watchRatioCount * 100).toFixed(1) : null,
+    };
+  });
+
+  return { totalHistoricalWeeks: weeks.size, totalHistoricalPosts: count, byFormat: summary };
+}
+
 async function runWeekAnalysis() {
   const btn = document.getElementById('analyzeWeekBtn');
   const resultEl = document.getElementById('analyzeWeekResult');
@@ -3509,11 +3555,13 @@ async function runWeekAnalysis() {
     }
 
     const targetWeek = localDateStr(zahlenWeekMonday);
+    const currentWeekPosts = posts.filter(p => p.weekId === targetWeek);
+    const historicalStats = buildHistoricalStats(posts, targetWeek);
 
     const res = await fetch('/api/analyze_week', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ posts, targetWeek }),
+      body: JSON.stringify({ currentWeekPosts, historicalStats, targetWeek }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Analyse fehlgeschlagen');
