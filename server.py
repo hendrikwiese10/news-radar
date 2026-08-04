@@ -16,7 +16,6 @@ from datetime import datetime, timezone, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api'))
 from spielplan import get_club_matches
 from analyze_week import analyze_week
-from news_scan import get_news_scan
 
 PORT = 3456
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -64,28 +63,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     self._json(200, {'weekSummary': None, 'postInsights': [], 'refused': True})
                     return
                 self._json(200, result)
-            except Exception as e:
-                self._json(500, {'error': str(e)})
-            return
-
-        # ── News Scan: KI-Websuche nach Ereignissen Jahrgänge 2010-2012 ──────
-        if parsed.path in ('/news_scan', '/api/news_scan'):
-            length = int(self.headers.get('Content-Length', 0) or 0)
-            raw = self.rfile.read(length) if length else b''
-            try:
-                body = json.loads(raw.decode('utf-8')) if raw else {}
-            except json.JSONDecodeError:
-                self._json(400, {'error': 'Ungültiges JSON'})
-                return
-
-            players = body.get('players') or []
-            if not os.environ.get('ANTHROPIC_API_KEY'):
-                self._json(500, {'error': 'ANTHROPIC_API_KEY ist nicht konfiguriert'})
-                return
-
-            try:
-                findings = get_news_scan(players)
-                self._json(200, {'findings': findings})
             except Exception as e:
                 self._json(500, {'error': str(e)})
             return
