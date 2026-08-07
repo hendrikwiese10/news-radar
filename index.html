@@ -2161,7 +2161,7 @@ async function openNewsDrawer(id) {
   const fullName = [player.firstName, player.lastName].filter(Boolean).join(' ');
 
   document.getElementById('drawerTitle').textContent = fullName;
-  document.getElementById('drawerSubtitle').textContent = 'Letzte 7 Tage';
+  document.getElementById('drawerSubtitle').textContent = 'Letzte 3 Tage';
   const query = player.searchTerm || [player.firstName, player.lastName].filter(Boolean).join(' ') + ' Fußball';
   document.getElementById('drawerGoogleLink').href =
     `https://news.google.com/search?q=${encodeURIComponent(query)}&hl=de`;
@@ -2205,7 +2205,7 @@ function renderDrawerArticles(articles, name) {
     document.getElementById('drawerBody').innerHTML = `
       <div class="news-empty">
         <p style="font-size:32px;margin-bottom:8px">📭</p>
-        <p>Keine Artikel in den letzten 7 Tagen</p>
+        <p>Keine Artikel in den letzten 3 Tagen</p>
         <p class="sub">Versuche den Suchbegriff anzupassen</p>
       </div>`;
     return;
@@ -3778,7 +3778,7 @@ async function loadBulkNews(prio) {
   if (group.length === 0) { showToast(`Keine Prio-${prio} Spieler vorhanden`, 'error'); return; }
 
   document.getElementById('drawerTitle').textContent = `${labels[prio]} News`;
-  document.getElementById('drawerSubtitle').textContent = `${group.length} Spieler · Letzte 7 Tage`;
+  document.getElementById('drawerSubtitle').textContent = `${group.length} Spieler · Letzte 3 Tage`;
   document.getElementById('drawerGoogleLink').style.display = 'none';
   document.getElementById('drawerOverlay').classList.add('open');
   document.getElementById('drawer').classList.add('open');
@@ -3824,7 +3824,7 @@ async function loadBulkNews(prio) {
   document.getElementById('drawerBody').innerHTML = sections || `
     <div class="news-empty">
       <p style="font-size:32px;margin-bottom:8px">📭</p>
-      <p>Keine ${labels[prio]} News in den letzten 7 Tagen</p>
+      <p>Keine ${labels[prio]} News in den letzten 3 Tagen</p>
     </div>`;
   document.getElementById('drawerGoogleLink').style.display = '';
 }

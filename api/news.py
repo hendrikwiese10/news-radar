@@ -30,7 +30,7 @@ class handler(BaseHTTPRequestHandler):
                 raw = r.read()
 
             root = ET.fromstring(raw)
-            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=3)
             articles = []
 
             for item in root.iter('item'):
@@ -46,7 +46,7 @@ class handler(BaseHTTPRequestHandler):
                 except Exception:
                     dt = datetime.now(timezone.utc)
 
-                if dt < seven_days_ago:
+                if dt < cutoff:
                     continue
 
                 articles.append({

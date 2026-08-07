@@ -110,7 +110,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
                 root = ET.fromstring(raw)
                 ns = {'media': 'http://search.yahoo.com/mrss/'}
-                seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+                cutoff = datetime.now(timezone.utc) - timedelta(days=3)
                 articles = []
 
                 for item in root.iter('item'):
@@ -129,7 +129,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         dt = datetime.now(timezone.utc)
 
-                    if dt < seven_days_ago:
+                    if dt < cutoff:
                         continue
 
                     articles.append({
