@@ -1197,6 +1197,7 @@
   <button class="tab" id="tab-qualitaetskontrolle" onclick="switchTab('qualitaetskontrolle')">🔍 Qualitätskontrolle</button>
   <button class="tab" id="tab-nationalmannschaft" onclick="switchTab('nationalmannschaft')">🇩🇪 Nationalmannschaft</button>
   <button class="tab" id="tab-zahlen" onclick="switchTab('zahlen')">📊 Zahlen der Woche</button>
+  <button class="tab" id="tab-spotlight" onclick="switchTab('spotlight')">🎯 Spotlight</button>
 </nav>
 
 <main>
@@ -1508,6 +1509,23 @@
     </div>
     <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Automatisch aus dem Content Plan übernommen: alle Beiträge dieser Woche, die als gepostet markiert wurden.</div>
     <div id="zahlenPostsList" class="zahlen-posts-grid"></div>
+  </div>
+
+  <!-- SPOTLIGHT -->
+  <div id="spotlightView" style="display:none">
+    <div class="dashboard-header">
+      <h2>🎯 Spotlight</h2>
+      <p style="color:var(--muted);font-size:13px;margin-top:4px">Wer wird als Nächstes gefeatured? Reihenfolge per ↑ / ↓ anpassen.</p>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin:16px 0">
+      <form onsubmit="event.preventDefault(); addSpotlightEntry()" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="spotlightName" list="spotlightPlayerNames" placeholder="Spieler…" style="flex:1;min-width:180px" />
+        <datalist id="spotlightPlayerNames"></datalist>
+        <input id="spotlightNote" placeholder="Notiz (optional), z.B. Grafik zum Debüt" style="flex:1.4;min-width:200px" />
+        <button class="btn btn-primary btn-sm" type="submit">+ Hinzufügen</button>
+      </form>
+    </div>
+    <div id="spotlightList"></div>
   </div>
 </main>
 
@@ -1870,6 +1888,7 @@ async function initFirebase() {
     await seedNationsIfNeeded();
     subscribeNations();
     subscribeQualityControl();
+    subscribeSpotlight();
     subscribePostMetrics();
     subscribeWeeklyFollowers(localDateStr(zahlenWeekMonday));
   } catch (err) {
@@ -1960,6 +1979,7 @@ function switchTab(tab) {
   document.getElementById('tab-qualitaetskontrolle').classList.toggle('active', tab === 'qualitaetskontrolle');
   document.getElementById('tab-nationalmannschaft').classList.toggle('active', tab === 'nationalmannschaft');
   document.getElementById('tab-zahlen').classList.toggle('active', tab === 'zahlen');
+  document.getElementById('tab-spotlight').classList.toggle('active', tab === 'spotlight');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
   document.getElementById('playerListView').style.display = (tab === 'all' || tab === 'footique') ? '' : 'none';
@@ -1971,6 +1991,7 @@ function switchTab(tab) {
   document.getElementById('qualitaetskontrolleView').style.display = tab === 'qualitaetskontrolle' ? '' : 'none';
   document.getElementById('nationalmannschaftView').style.display = tab === 'nationalmannschaft' ? '' : 'none';
   document.getElementById('zahlenView').style.display = tab === 'zahlen' ? '' : 'none';
+  document.getElementById('spotlightView').style.display = tab === 'spotlight' ? '' : 'none';
 
   if (tab === 'dashboard') {
     loadDashboard();
@@ -1991,6 +2012,8 @@ function switchTab(tab) {
     renderNationalmannschaft();
   } else if (tab === 'zahlen') {
     // Live über den weekQ-Listener in initWochenplanRead() befüllt.
+  } else if (tab === 'spotlight') {
+    renderSpotlight();
   } else {
     renderStats();
     renderTable();
@@ -2696,6 +2719,111 @@ function toggleTask(id, done) {
 
 function deleteTask(id) {
   fsDeleteDoc(fsDoc(db, 'tasks', id))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+// ─── SPOTLIGHT (manuelle Reihenfolge: wer wird als Nächstes gefeatured) ──────
+
+let spotlight = [];
+let unsubscribeSpotlight = null;
+
+function subscribeSpotlight() {
+  if (unsubscribeSpotlight) { unsubscribeSpotlight(); unsubscribeSpotlight = null; }
+  unsubscribeSpotlight = fsOnSnapshot(fsCollection(db, 'spotlight'), (snap) => {
+    spotlight = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (activeTab === 'spotlight') renderSpotlight();
+  }, (err) => console.error('spotlight listener error', err));
+}
+
+// Offene Einträge nach manueller Reihenfolge, erledigte ans Ende.
+function sortedSpotlight() {
+  return spotlight.slice().sort((a, b) => {
+    if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+}
+
+function renderSpotlight() {
+  const listEl = document.getElementById('spotlightList');
+  if (!listEl) return;
+
+  // Autocomplete aus der Spielerdatenbank
+  document.getElementById('spotlightPlayerNames').innerHTML = players
+    .map(p => `<option value="${escHtml([p.firstName, p.lastName].filter(Boolean).join(' '))}"></option>`)
+    .join('');
+
+  const entries = sortedSpotlight();
+  if (entries.length === 0) {
+    listEl.innerHTML = `<div class="dashboard-empty">Noch keine Spieler auf der Liste – oben eintragen.</div>`;
+    return;
+  }
+
+  const openEntries = entries.filter(e => !e.done);
+
+  listEl.innerHTML = entries.map(e => {
+    const pos = openEntries.indexOf(e);
+    const idx = entries.indexOf(e);
+    const isFirstOpen = pos === 0;
+    const isLastOpen = pos === openEntries.length - 1;
+    const player = players.find(p => [p.firstName, p.lastName].filter(Boolean).join(' ') === e.name);
+    const meta = player ? [player.club, player.pos, player.birth ? `Jg. ${player.birth}` : null].filter(Boolean).join(' · ') : '';
+
+    return `<div class="today-content-card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;${e.done ? 'opacity:.5' : ''}">
+      <div style="font-weight:800;font-size:18px;color:var(--muted);min-width:28px;text-align:center">${e.done ? '✓' : pos + 1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;${e.done ? 'text-decoration:line-through' : ''}">${escHtml(e.name)}</div>
+        ${meta ? `<div style="font-size:12px;color:var(--muted)">${escHtml(meta)}</div>` : ''}
+        ${e.note ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${escHtml(e.note)}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:4px;align-items:center">
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="moveSpotlight('${e.id}', -1)" ${e.done || isFirstOpen ? 'disabled' : ''} title="Nach oben">↑</button>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="moveSpotlight('${e.id}', 1)" ${e.done || isLastOpen ? 'disabled' : ''} title="Nach unten">↓</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleSpotlightDone('${e.id}', ${!e.done})" title="${e.done ? 'Wieder offen' : 'Als gefeatured markieren'}">${e.done ? '↩' : '✓'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteSpotlightEntry('${e.id}')" title="Löschen">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function addSpotlightEntry() {
+  const nameEl = document.getElementById('spotlightName');
+  const noteEl = document.getElementById('spotlightNote');
+  const name = nameEl.value.trim();
+  if (!name) { showToast('Bitte einen Spieler eintragen', 'error'); return; }
+
+  const maxOrder = spotlight.reduce((max, e) => Math.max(max, e.order ?? 0), 0);
+  fsAddDoc(fsCollection(db, 'spotlight'), {
+    name,
+    note: noteEl.value.trim(),
+    order: maxOrder + 1,
+    done: false,
+    createdAt: Date.now(),
+  })
+    .then(() => { nameEl.value = ''; noteEl.value = ''; })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function moveSpotlight(id, direction) {
+  const open = sortedSpotlight().filter(e => !e.done);
+  const i = open.findIndex(e => e.id === id);
+  const j = i + direction;
+  if (i === -1 || j < 0 || j >= open.length) return;
+
+  // Reihenfolge der beiden Nachbarn tauschen
+  const a = open[i], b = open[j];
+  Promise.all([
+    fsUpdateDoc(fsDoc(db, 'spotlight', a.id), { order: b.order ?? j }),
+    fsUpdateDoc(fsDoc(db, 'spotlight', b.id), { order: a.order ?? i }),
+  ]).catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function toggleSpotlightDone(id, done) {
+  fsUpdateDoc(fsDoc(db, 'spotlight', id), { done })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function deleteSpotlightEntry(id) {
+  fsDeleteDoc(fsDoc(db, 'spotlight', id))
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
