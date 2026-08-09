@@ -1510,7 +1510,7 @@
       </div>
       <div id="analyzeWeekResult" style="font-size:13px;color:var(--muted);white-space:pre-wrap;line-height:1.6"></div>
     </div>
-    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Automatisch aus dem Content Plan übernommen: alle Beiträge dieser Woche, die als gepostet markiert wurden.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Automatisch aus dem Content Plan übernommen: alle <strong>Instagram</strong>-Beiträge dieser Woche, die als gepostet markiert wurden. TikTok und X bleiben vorerst außen vor.</div>
     <div id="zahlenPostsList" class="zahlen-posts-grid"></div>
   </div>
 
@@ -3595,11 +3595,13 @@ function renderZahlenPosts(posts) {
   const el = document.getElementById('zahlenPostsList');
   const countEl = document.getElementById('zahlenPostsCount');
   if (!el) return;
-  const posted = posts.filter(p => p.done || p.status === 'Gepostet');
+  // Nur Instagram: TikTok- und X-Posts werden hier bewusst ausgeblendet,
+  // damit Kartenliste und KI-Wochenanalyse auf derselben Grundlage stehen.
+  const posted = posts.filter(p => (p.done || p.status === 'Gepostet') && p.platform === 'Instagram');
   currentWeekPosts = posted;
   if (countEl) countEl.textContent = posted.length ? `${posted.length} gepostet` : '';
   if (posted.length === 0) {
-    el.innerHTML = '<div class="dashboard-empty">In dieser Woche wurde nichts als gepostet markiert.</div>';
+    el.innerHTML = '<div class="dashboard-empty">In dieser Woche wurde kein Instagram-Beitrag als gepostet markiert.</div>';
     return;
   }
   posted.sort((a, b) => (a.day || '').localeCompare(b.day || '') || (a.time || '').localeCompare(b.time || ''));
