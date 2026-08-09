@@ -1403,7 +1403,8 @@
         <h2>🔍 Qualitätskontrolle</h2>
       </div>
     </div>
-    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Schwächen und Verbesserungspotenzial der aktuellen Woche – erscheint automatisch als Fokus-Thema im Dashboard.</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Schwächen und Verbesserungspotenzial der aktuellen Woche – erscheint automatisch als Fokus-Thema im Dashboard. Jede Woche startet neu, frühere Wochen bleiben unten erhalten.</div>
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">Diese Woche <span id="qcCurrentWeekLabel" style="font-weight:400;color:var(--muted);font-size:12px"></span></div>
     <div class="aufgabenplan-columns">
       <div class="aufgabenplan-person-column">
         <div class="aufgabenplan-column-title" style="color:#ef4444">Hendrik</div>
@@ -1414,6 +1415,8 @@
         <textarea id="qcMichel" class="qc-textarea" placeholder="Was lief diese Woche nicht optimal?"></textarea>
       </div>
     </div>
+    <div style="font-weight:700;font-size:14px;margin:28px 0 8px">📚 Frühere Wochen</div>
+    <div id="qcHistory"></div>
   </div>
 
   <div id="nationalmannschaftView" style="display:none">
@@ -2007,7 +2010,9 @@ function switchTab(tab) {
   } else if (tab === 'netzwerk') {
     renderNetwork();
   } else if (tab === 'qualitaetskontrolle') {
-    // Live-Textfelder sind bereits über subscribeQualityControl() an Firestore gebunden.
+    // Wochenwechsel abfangen, falls die App über den Montag hinweg offen blieb
+    if (qcWeekId !== currentWeekMonday()) subscribeQualityControl();
+    else renderQualityControlHistory();
   } else if (tab === 'nationalmannschaft') {
     renderNationalmannschaft();
   } else if (tab === 'zahlen') {
@@ -2902,25 +2907,99 @@ function subscribeNetwork() {
   }, (err) => console.error('network contacts listener error', err));
 }
 
-// ─── QUALITÄTSKONTROLLE (wöchentliche Schwächen-Analyse → Fokus-Thema Dashboard) ──
-let qualityControl = { hendrik: '', michel: '' };
+// ─── QUALITÄTSKONTROLLE (pro Woche ein Eintrag, Historie bleibt erhalten) ────
+let qualityControl = { hendrik: '', michel: '' }; // nur die aktuelle Woche (fürs Dashboard-Fokus-Thema)
+let qualityControlHistory = [];                   // alle Wochen, neueste zuerst
+let qcWeekId = null;                              // Montag der aktuellen Woche als YYYY-MM-DD
 let unsubscribeQualityControl = null;
 let qcSaveTimerHendrik = null, qcSaveTimerMichel = null;
 
+function qcWeekRangeLabel(weekId) {
+  const [y, m, d] = weekId.split('-').map(Number);
+  const start = new Date(y, m - 1, d);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  const fmt = (dt) => dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  return `${fmt(start)} – ${fmt(end)} ${end.getFullYear()}`;
+}
+
 function subscribeQualityControl() {
   if (unsubscribeQualityControl) unsubscribeQualityControl();
-  unsubscribeQualityControl = fsOnSnapshot(fsDoc(db, 'meta', 'qualityControl'), (snap) => {
-    qualityControl = snap.exists() ? snap.data() : { hendrik: '', michel: '' };
+  qcWeekId = currentWeekMonday(); // liefert bereits YYYY-MM-DD
+  document.getElementById('qcCurrentWeekLabel').textContent = `· ${qcWeekRangeLabel(qcWeekId)}`;
+
+  unsubscribeQualityControl = fsOnSnapshot(fsCollection(db, 'qualityControl'), (snap) => {
+    qualityControlHistory = snap.docs
+      .map(d => ({ weekId: d.id, ...d.data() }))
+      .sort((a, b) => String(b.weekId).localeCompare(String(a.weekId)));
+
+    const current = qualityControlHistory.find(w => w.weekId === qcWeekId);
+    qualityControl = { hendrik: current?.hendrik || '', michel: current?.michel || '' };
+
     const hEl = document.getElementById('qcHendrik');
     const mEl = document.getElementById('qcMichel');
-    if (document.activeElement !== hEl && hEl.value !== (qualityControl.hendrik || '')) hEl.value = qualityControl.hendrik || '';
-    if (document.activeElement !== mEl && mEl.value !== (qualityControl.michel || '')) mEl.value = qualityControl.michel || '';
+    if (document.activeElement !== hEl && hEl.value !== qualityControl.hendrik) hEl.value = qualityControl.hendrik;
+    if (document.activeElement !== mEl && mEl.value !== qualityControl.michel) mEl.value = qualityControl.michel;
+
+    renderQualityControlHistory();
     if (activeTab === 'dashboard') renderDashboardFocusTheme();
   }, (err) => console.error('quality control listener error', err));
+
+  migrateLegacyQualityControl();
+}
+
+// Übernimmt den alten, wochenlosen Einzeleintrag einmalig in die aktuelle Woche,
+// damit beim Umstieg nichts verloren geht.
+async function migrateLegacyQualityControl() {
+  try {
+    const legacySnap = await fsGetDoc(fsDoc(db, 'meta', 'qualityControl'));
+    if (!legacySnap.exists()) return;
+    const legacy = legacySnap.data();
+    if (legacy.migratedTo) return;
+    if (!((legacy.hendrik || '') + (legacy.michel || '')).trim()) return;
+
+    await fsSetDoc(fsDoc(db, 'qualityControl', qcWeekId), {
+      hendrik: legacy.hendrik || '',
+      michel: legacy.michel || '',
+      weekId: qcWeekId,
+    }, { merge: true });
+    await fsSetDoc(fsDoc(db, 'meta', 'qualityControl'), { migratedTo: qcWeekId }, { merge: true });
+  } catch (err) {
+    console.error('Qualitätskontrolle-Migration fehlgeschlagen', err);
+  }
+}
+
+function renderQualityControlHistory() {
+  const el = document.getElementById('qcHistory');
+  if (!el) return;
+
+  const past = qualityControlHistory.filter(w =>
+    w.weekId !== qcWeekId && ((w.hendrik || '') + (w.michel || '')).trim()
+  );
+
+  if (past.length === 0) {
+    el.innerHTML = '<div class="dashboard-empty">Noch keine früheren Wochen erfasst.</div>';
+    return;
+  }
+
+  el.innerHTML = past.map(w => `
+    <div class="today-content-card" style="margin-bottom:10px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:8px">${escHtml(qcWeekRangeLabel(w.weekId))}</div>
+      ${(w.hendrik || '').trim() ? `<div style="margin-bottom:${(w.michel || '').trim() ? '10px' : '0'}">
+        <div style="font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;margin-bottom:4px">Hendrik</div>
+        <div style="font-size:13px;white-space:pre-wrap">${escHtml(w.hendrik)}</div>
+      </div>` : ''}
+      ${(w.michel || '').trim() ? `<div>
+        <div style="font-size:11px;font-weight:700;color:#eab308;text-transform:uppercase;margin-bottom:4px">Michel</div>
+        <div style="font-size:13px;white-space:pre-wrap">${escHtml(w.michel)}</div>
+      </div>` : ''}
+    </div>
+  `).join('');
 }
 
 function saveQualityControlField(field, value) {
-  fsSetDoc(fsDoc(db, 'meta', 'qualityControl'), { [field]: value }, { merge: true })
+  if (!qcWeekId) return;
+  fsSetDoc(fsDoc(db, 'qualityControl', qcWeekId), { [field]: value, weekId: qcWeekId }, { merge: true })
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
