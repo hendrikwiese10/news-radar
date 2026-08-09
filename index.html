@@ -1502,7 +1502,7 @@
     </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px">
-        <div style="font-weight:700;font-size:14px">🔍 KI-Wochenanalyse</div>
+        <div style="font-weight:700;font-size:14px">🔍 KI-Wochenanalyse <span style="font-weight:400;color:var(--muted);font-size:12px">· nur Instagram</span></div>
         <button id="analyzeWeekBtn" class="btn btn-primary btn-sm" onclick="runWeekAnalysis()">Analyse starten</button>
       </div>
       <div id="analyzeWeekResult" style="font-size:13px;color:var(--muted);white-space:pre-wrap;line-height:1.6"></div>
@@ -3662,10 +3662,15 @@ async function runWeekAnalysis() {
 
   try {
     const allPosts = await fetchAllTrackedPosts();
-    const posts = allPosts.map(buildAnalysisPost).filter(Boolean);
+    // Bewertet werden aktuell ausschließlich Instagram-Posts (TikTok und X bleiben außen vor) -
+    // auch bei den historischen Vergleichswerten, damit die Vergleiche sauber bleiben.
+    const posts = allPosts
+      .map(buildAnalysisPost)
+      .filter(Boolean)
+      .filter(p => p.platform === 'Instagram');
 
     if (posts.length === 0) {
-      showToast('Noch keine Post-Metriken erfasst', 'error');
+      showToast('Noch keine Metriken zu Instagram-Posts erfasst', 'error');
       return;
     }
 
