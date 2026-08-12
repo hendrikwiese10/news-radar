@@ -2167,10 +2167,24 @@ function deletePlayer(id) {
 
 // ─── NEWS ─────────────────────────────────────────────────────────────────────
 
+// Suchwort "Fußball" in der jeweiligen Landessprache - in der britischen
+// News-Ausgabe findet "Fußball" praktisch nichts.
+const NEWS_SPORT_WORD = {
+  Deutschland: 'Fußball', Österreich: 'Fußball', Schweiz: 'Fußball',
+  England: 'football', Schottland: 'football', Wales: 'football', Irland: 'football', USA: 'soccer',
+  Frankreich: 'football', Italien: 'calcio',
+  Spanien: 'fútbol', Argentinien: 'fútbol',
+  Portugal: 'futebol', Brasilien: 'futebol',
+  Niederlande: 'voetbal', Belgien: 'voetbal',
+  Türkei: 'futbol', Polen: 'piłka nożna', Kroatien: 'nogomet', Serbien: 'fudbal',
+  Dänemark: 'fodbold', Schweden: 'fotboll', Norwegen: 'fotball',
+};
+
 async function fetchNews(player) {
-  const query = player.searchTerm || [player.firstName, player.lastName].filter(Boolean).join(' ') + ' Fußball';
+  const sportWord = NEWS_SPORT_WORD[player.nation] || 'Fußball';
+  const query = player.searchTerm || [player.firstName, player.lastName].filter(Boolean).join(' ') + ' ' + sportWord;
   // Eigene Serverless-Funktion (api/news.py) statt unzuverlässiger Gratis-Proxies
-  const url = `/api/news?q=${encodeURIComponent(query)}`;
+  const url = `/api/news?q=${encodeURIComponent(query)}&nation=${encodeURIComponent(player.nation || '')}`;
 
   let resp;
   try {

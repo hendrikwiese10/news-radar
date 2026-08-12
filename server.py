@@ -16,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api'))
 from spielplan import get_club_matches
 from analyze_week import analyze_week
+from news import build_rss_url  # Länder-/Sprachlogik einmal gepflegt in api/news.py
 
 PORT = 3456
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,14 +94,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if parsed.path in ('/news', '/api/news'):
             params = urllib.parse.parse_qs(parsed.query)
             query = params.get('q', [''])[0]
+            nation = params.get('nation', [''])[0]
             if not query:
                 self._json(400, {'error': 'Parameter q fehlt'})
                 return
 
-            rss_url = (
-                f'https://news.google.com/rss/search?q={urllib.parse.quote(query)}'
-                f'&hl=de&gl=DE&ceid=DE:de'
-            )
+            rss_url = build_rss_url(query, nation)
             try:
                 req = urllib.request.Request(rss_url, headers={
                     'User-Agent': 'Mozilla/5.0 (compatible; NewsRadar/1.0)'
