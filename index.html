@@ -1943,6 +1943,15 @@ initFirebase();
 const NEWS_CACHE_KEY = 'news_cache';
 const NEWS_CACHE_TTL = 60 * 60 * 1000; // 1 Stunde
 
+// Kennung der Suchanfrage: ändert sich Nation, Suchbegriff oder das
+// Sprach-Suchwort, passt der alte Cache-Eintrag nicht mehr und wird verworfen.
+function newsQueryKey(playerId) {
+  const p = players.find(x => x.id === playerId);
+  if (!p) return '';
+  const req = buildNewsRequest(p);
+  return `${req.query}|${req.nation}`;
+}
+
 function getCachedNews(playerId) {
   try {
     const raw = localStorage.getItem(NEWS_CACHE_KEY);
@@ -1951,6 +1960,7 @@ function getCachedNews(playerId) {
     const entry = cache[playerId];
     if (!entry) return null;
     if (Date.now() - entry.ts > NEWS_CACHE_TTL) return null;
+    if (entry.key !== newsQueryKey(playerId)) return null; // andere Sprache/Nation als beim Befüllen
     return entry.articles;
   } catch { return null; }
 }
@@ -1959,7 +1969,7 @@ function setCachedNews(playerId, articles) {
   try {
     const raw = localStorage.getItem(NEWS_CACHE_KEY);
     const cache = raw ? JSON.parse(raw) : {};
-    cache[playerId] = { ts: Date.now(), articles };
+    cache[playerId] = { ts: Date.now(), articles, key: newsQueryKey(playerId) };
     localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(cache));
   } catch {}
 }
@@ -2180,11 +2190,18 @@ const NEWS_SPORT_WORD = {
   Dänemark: 'fodbold', Schweden: 'fotboll', Norwegen: 'fotball',
 };
 
-async function fetchNews(player) {
+// Eine Stelle für Suchbegriff + Nation, damit Abfrage und Cache-Kennung
+// nicht auseinanderlaufen können.
+function buildNewsRequest(player) {
   const sportWord = NEWS_SPORT_WORD[player.nation] || 'Fußball';
   const query = player.searchTerm || [player.firstName, player.lastName].filter(Boolean).join(' ') + ' ' + sportWord;
+  return { query, nation: player.nation || '' };
+}
+
+async function fetchNews(player) {
+  const { query, nation } = buildNewsRequest(player);
   // Eigene Serverless-Funktion (api/news.py) statt unzuverlässiger Gratis-Proxies
-  const url = `/api/news?q=${encodeURIComponent(query)}&nation=${encodeURIComponent(player.nation || '')}`;
+  const url = `/api/news?q=${encodeURIComponent(query)}&nation=${encodeURIComponent(nation)}`;
 
   let resp;
   try {
