@@ -66,7 +66,7 @@ class handler(BaseHTTPRequestHandler):
                 raw = r.read()
 
             root = ET.fromstring(raw)
-            cutoff = datetime.now(timezone.utc) - timedelta(days=3)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=1)
             articles = []
 
             for item in root.iter('item'):
