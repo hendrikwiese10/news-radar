@@ -1294,6 +1294,9 @@
         <option value="OM">OM</option>
         <option value="LA">LA</option>
         <option value="RA">RA</option>
+        <option value="Abwehr">Abwehr</option>
+        <option value="Mittelfeld">Mittelfeld</option>
+        <option value="Angriff">Angriff</option>
         <option value="ST">ST</option>
       </select>
     </div>
@@ -1721,6 +1724,7 @@
           <option>TW</option><option>IV</option><option>LV</option><option>RV</option>
           <option>DM</option><option>ZM</option><option>OM</option>
           <option>LA</option><option>RA</option><option>ST</option>
+          <option>Abwehr</option><option>Mittelfeld</option><option>Angriff</option>
         </select>
       </div>
       <div class="form-group">
@@ -3261,9 +3265,9 @@ function saveNetworkCountry() {
 const AGE_GROUPS = ['U15', 'U16', 'U17', 'U19', 'U21', 'Profis'];
 const POSITION_GROUPS = [
   { label: 'TW', positions: ['TW'] },
-  { label: 'Verteidiger', positions: ['IV', 'LV', 'RV'] },
-  { label: 'Mittelfeld', positions: ['DM', 'ZM', 'OM'] },
-  { label: 'Stürmer', positions: ['LA', 'RA', 'ST'] },
+  { label: 'Verteidiger', positions: ['IV', 'LV', 'RV', 'Abwehr'] },
+  { label: 'Mittelfeld', positions: ['DM', 'ZM', 'OM', 'Mittelfeld'] },
+  { label: 'Stürmer', positions: ['LA', 'RA', 'ST', 'Angriff'] },
 ];
 const NATION_SEED_LIST = [
   { flag: '🇩🇪', name: 'Deutschland' },
