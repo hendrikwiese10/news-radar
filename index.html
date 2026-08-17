@@ -1814,6 +1814,10 @@
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+<div class="toast" id="readUndoToast" style="bottom:80px;display:flex;align-items:center;gap:12px;max-width:360px">
+  <span style="flex:1;min-width:0" id="readUndoText"></span>
+  <button class="btn btn-ghost btn-sm" onclick="undoLastReadMark()" style="flex-shrink:0">↺ Rückgängig</button>
+</div>
 
 <script>
 // ─── DATA ────────────────────────────────────────────────────────────────────
@@ -2032,6 +2036,9 @@ function unreadArticles(playerId, articles) {
   return (articles || []).filter(a => !isArticleRead(playerId, a.link));
 }
 
+let lastReadUndo = null;
+let readUndoTimer = null;
+
 function markArticleRead(key, event) {
   if (event) { event.preventDefault(); event.stopPropagation(); }
   const entry = articleRegistry[key];
@@ -2039,17 +2046,49 @@ function markArticleRead(key, event) {
   readNewsKeys.add(key); // sofort lokal übernehmen, damit die Karte direkt verschwindet
   const cardEl = document.getElementById('art_' + key);
   if (cardEl) cardEl.remove();
-  fsSetDoc(fsDoc(db, 'readNews', key), {
+  const writePromise = fsSetDoc(fsDoc(db, 'readNews', key), {
     playerId: entry.playerId, link: entry.link, title: entry.title, readAt: Date.now(),
-  }).catch(err => showToast('Fehler: ' + err.message, 'error'));
+  }).catch(err => { showToast('Fehler: ' + err.message, 'error'); throw err; });
+  renderTable();
+  showReadUndoToast(key, entry, writePromise);
+}
+
+function showReadUndoToast(key, entry, writePromise) {
+  lastReadUndo = { key, entry, writePromise };
+  const toastEl = document.getElementById('readUndoToast');
+  const title = entry.title.length > 46 ? entry.title.slice(0, 46) + '…' : entry.title;
+  document.getElementById('readUndoText').textContent = `Als gelesen markiert: ${title}`;
+  toastEl.classList.add('show');
+  clearTimeout(readUndoTimer);
+  readUndoTimer = setTimeout(() => { toastEl.classList.remove('show'); lastReadUndo = null; }, 8000);
+}
+
+function undoLastReadMark() {
+  if (!lastReadUndo) return;
+  const { key, entry, writePromise } = lastReadUndo;
+  readNewsKeys.delete(key);
+  document.getElementById('readUndoToast').classList.remove('show');
+  clearTimeout(readUndoTimer);
+  lastReadUndo = null;
+  // Erst löschen, nachdem das ursprüngliche Anlegen beim Server sicher angekommen
+  // ist - sonst kann bei schnellem Klicken die Löschung vor dem Anlegen ankommen
+  // und der Artikel bliebe fälschlich als gelesen markiert.
+  Promise.resolve(writePromise).catch(() => {}).then(() =>
+    fsDeleteDoc(fsDoc(db, 'readNews', key)).catch(err => showToast('Fehler: ' + err.message, 'error'))
+  );
+  renderTable();
+  if (typeof entry.refresh === 'function') entry.refresh(); // stellt die Karte wieder her, falls die Ansicht noch offen ist
 }
 
 // Gemeinsamer Karten-Baustein für Spieler-Drawer, Bulk-News und Dashboard-Widget.
-function articleCardHtml(playerId, a, { decorated = false, playerLabel = null, withYear = false } = {}) {
+// "refresh" beschreibt, wie die aufrufende Ansicht sich selbst neu zeichnet -
+// wird für den Rückgängig-Mechanismus gebraucht, damit eine wiederhergestellte
+// Karte auch wieder sichtbar wird, statt nur im Hintergrund als ungelesen zu gelten.
+function articleCardHtml(playerId, a, { decorated = false, playerLabel = null, withYear = false, refresh = null } = {}) {
   const date = new Date(a.pubDate).toLocaleDateString('de-DE',
     withYear ? { day: '2-digit', month: 'short', year: 'numeric' } : { day: '2-digit', month: 'short' });
   const key = articleReadKey(playerId, a.link);
-  articleRegistry[key] = { playerId, link: a.link, title: a.title };
+  articleRegistry[key] = { playerId, link: a.link, title: a.title, refresh };
   return `<a class="article ${decorated ? 'article-decorated' : ''}" id="art_${key}" href="${a.link}" target="_blank" rel="noopener">
     <span class="article-read-toggle" onclick="markArticleRead('${key}', event)" title="Als gelesen markieren – wird dann nicht mehr angezeigt">✓</span>
     ${decorated ? '<span class="article-decoration">🗞️</span>' : ''}
@@ -2344,6 +2383,8 @@ async function openNewsDrawer(id) {
 }
 
 function renderDrawerArticles(playerId, articles) {
+  const player = players.find(p => p.id === playerId);
+  const fullName = player ? [player.firstName, player.lastName].filter(Boolean).join(' ') : '';
   if (articles.length === 0) {
     document.getElementById('drawerBody').innerHTML = `
       <div class="news-empty">
@@ -2365,7 +2406,13 @@ function renderDrawerArticles(playerId, articles) {
     return;
   }
 
-  const html = unread.map(a => articleCardHtml(playerId, a, { withYear: true })).join('');
+  const refresh = () => {
+    if (document.getElementById('drawer').classList.contains('open')
+      && document.getElementById('drawerTitle').textContent === fullName) {
+      renderDrawerArticles(playerId, newsCache[playerId] || articles);
+    }
+  };
+  const html = unread.map(a => articleCardHtml(playerId, a, { withYear: true, refresh })).join('');
 
   document.getElementById('drawerBody').innerHTML = `
     <div style="margin-bottom:10px;font-size:12px;color:var(--muted)">${unread.length} ungelesene Artikel</div>
@@ -3967,8 +4014,8 @@ function renderDashboardDate() {
     new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function dashboardArticleCard(playerId, a, playerName) {
-  return articleCardHtml(playerId, a, { decorated: true, playerLabel: playerName });
+function dashboardArticleCard(playerId, a, playerName, refresh) {
+  return articleCardHtml(playerId, a, { decorated: true, playerLabel: playerName, refresh });
 }
 
 async function loadDashboard() {
@@ -4075,9 +4122,10 @@ async function loadDashboardTopNews() {
   cards.sort((x, y) => y.ts - x.ts);
   countEl.textContent = cards.length;
 
+  const refresh = () => { if (activeTab === 'dashboard') loadDashboardTopNews(); };
   el.innerHTML = cards.length === 0
     ? `<div class="dashboard-empty">Keine ungelesenen News zu deinen Top-Talenten</div>`
-    : cards.slice(0, 12).map(c => dashboardArticleCard(c.playerId, c.a, c.name)).join('');
+    : cards.slice(0, 12).map(c => dashboardArticleCard(c.playerId, c.a, c.name, refresh)).join('');
 }
 
 async function loadDashboardGeneralNews() {
@@ -4087,9 +4135,10 @@ async function loadDashboardGeneralNews() {
   try {
     const articles = unreadArticles('general', await fetchGeneralNews());
     countEl.textContent = articles.length;
+    const refresh = () => { if (activeTab === 'dashboard') loadDashboardGeneralNews(); };
     el.innerHTML = articles.length === 0
       ? `<div class="dashboard-empty">Keine ungelesenen allgemeinen News</div>`
-      : articles.slice(0, 12).map(a => dashboardArticleCard('general', a, null)).join('');
+      : articles.slice(0, 12).map(a => dashboardArticleCard('general', a, null, refresh)).join('');
   } catch (e) {
     countEl.textContent = '!';
     el.innerHTML = `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(e.message)}</div>`;
@@ -4127,6 +4176,16 @@ async function loadBulkNews(prio) {
   }));
 
   renderTable();
+  renderBulkSections(prio, labels[prio], results);
+}
+
+function renderBulkSections(prio, label, results) {
+  const refresh = () => {
+    if (document.getElementById('drawer').classList.contains('open')
+      && document.getElementById('drawerTitle').textContent === `${label} News`) {
+      renderBulkSections(prio, label, results);
+    }
+  };
 
   const sections = results
     .filter(r => r.status === 'fulfilled')
@@ -4134,7 +4193,7 @@ async function loadBulkNews(prio) {
     .filter(r => r.unread.length > 0)
     .map(r => {
       const fullName = [r.player.firstName, r.player.lastName].filter(Boolean).join(' ');
-      const artHtml = r.unread.map(a => articleCardHtml(r.player.id, a)).join('');
+      const artHtml = r.unread.map(a => articleCardHtml(r.player.id, a, { refresh })).join('');
       return `<div class="bulk-section">
         <h3>${escHtml(fullName)} <span style="color:var(--muted);font-weight:400">(${r.unread.length})</span></h3>
         <div class="article-list">${artHtml}</div>
@@ -4144,7 +4203,7 @@ async function loadBulkNews(prio) {
   document.getElementById('drawerBody').innerHTML = sections || `
     <div class="news-empty">
       <p style="font-size:32px;margin-bottom:8px">📭</p>
-      <p>Keine ungelesenen ${labels[prio]} News in den letzten 24 Stunden</p>
+      <p>Keine ungelesenen ${label} News in den letzten 24 Stunden</p>
     </div>`;
   document.getElementById('drawerGoogleLink').style.display = '';
 }
