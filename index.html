@@ -305,16 +305,34 @@
 
     .article-list { display: flex; flex-direction: column; gap: 12px; }
     .article {
+      position: relative;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 14px 16px;
+      padding: 14px 16px 14px 44px;
       cursor: pointer;
-      transition: border-color .15s;
+      transition: border-color .15s, opacity .15s;
       text-decoration: none;
       display: block;
     }
     .article:hover { border-color: var(--accent); }
+    .article-read-toggle {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color .15s, background .15s, color .15s;
+    }
+    .article-read-toggle:hover { border-color: var(--accent); color: var(--accent); background: rgba(255,255,255,.05); }
     .article-decorated { position: relative; padding-right: 38px; overflow: hidden; }
     .article-decoration {
       position: absolute;
@@ -1896,6 +1914,7 @@ async function initFirebase() {
     subscribeNations();
     subscribeQualityControl();
     subscribeSpotlight();
+    subscribeReadNews();
     subscribePostMetrics();
     subscribeWeeklyFollowers(localDateStr(zahlenWeekMonday));
   } catch (err) {
@@ -1980,6 +1999,66 @@ function setCachedNews(playerId, articles) {
 
 // In-memory cache für diese Session
 let newsCache = {};
+
+// ─── GELESENE NEWS (geteilt zwischen Hendrik & Michel, dauerhaft in Firestore) ──
+// Einmal als gelesen markiert, taucht ein Artikel bei niemandem mehr auf -
+// auch nach einem Reload oder auf dem anderen Rechner, weil der Zustand in
+// der gemeinsamen Datenbank statt nur lokal gespeichert wird.
+let readNewsKeys = new Set();
+let articleRegistry = {}; // key -> { playerId, link, title } - für den Firestore-Schreibvorgang beim Klick
+let unsubscribeReadNews = null;
+
+function subscribeReadNews() {
+  if (unsubscribeReadNews) unsubscribeReadNews();
+  unsubscribeReadNews = fsOnSnapshot(fsCollection(db, 'readNews'), (snap) => {
+    readNewsKeys = new Set(snap.docs.map(d => d.id));
+  }, (err) => console.error('readNews listener error', err));
+}
+
+// Stabiler, Firestore-doc-ID-sicherer Schlüssel aus Spieler + Artikel-Link
+// (Links können Zeichen enthalten, die als Doc-ID oder in Inline-onclick-
+// Attributen problematisch wären, deshalb ein einfacher Hash statt des Links selbst).
+function articleReadKey(playerId, link) {
+  let hash = 0;
+  for (let i = 0; i < link.length; i++) hash = (hash * 31 + link.charCodeAt(i)) >>> 0;
+  return `${playerId}_${hash.toString(36)}`;
+}
+
+function isArticleRead(playerId, link) {
+  return readNewsKeys.has(articleReadKey(playerId, link));
+}
+
+function unreadArticles(playerId, articles) {
+  return (articles || []).filter(a => !isArticleRead(playerId, a.link));
+}
+
+function markArticleRead(key, event) {
+  if (event) { event.preventDefault(); event.stopPropagation(); }
+  const entry = articleRegistry[key];
+  if (!entry) return;
+  readNewsKeys.add(key); // sofort lokal übernehmen, damit die Karte direkt verschwindet
+  const cardEl = document.getElementById('art_' + key);
+  if (cardEl) cardEl.remove();
+  fsSetDoc(fsDoc(db, 'readNews', key), {
+    playerId: entry.playerId, link: entry.link, title: entry.title, readAt: Date.now(),
+  }).catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+// Gemeinsamer Karten-Baustein für Spieler-Drawer, Bulk-News und Dashboard-Widget.
+function articleCardHtml(playerId, a, { decorated = false, playerLabel = null, withYear = false } = {}) {
+  const date = new Date(a.pubDate).toLocaleDateString('de-DE',
+    withYear ? { day: '2-digit', month: 'short', year: 'numeric' } : { day: '2-digit', month: 'short' });
+  const key = articleReadKey(playerId, a.link);
+  articleRegistry[key] = { playerId, link: a.link, title: a.title };
+  return `<a class="article ${decorated ? 'article-decorated' : ''}" id="art_${key}" href="${a.link}" target="_blank" rel="noopener">
+    <span class="article-read-toggle" onclick="markArticleRead('${key}', event)" title="Als gelesen markieren – wird dann nicht mehr angezeigt">✓</span>
+    ${decorated ? '<span class="article-decoration">🗞️</span>' : ''}
+    ${playerLabel ? `<div class="dashboard-article-player">⭐ ${escHtml(playerLabel)}</div>` : ''}
+    <div class="article-source">${escHtml(a.source)}</div>
+    <div class="article-title">${escHtml(a.title)}</div>
+    <div class="article-meta">${date}</div>
+  </a>`;
+}
 
 // ─── TABS ────────────────────────────────────────────────────────────────────
 
@@ -2115,11 +2194,12 @@ function renderTable() {
   tbody.innerHTML = filtered.map(p => {
     const fullName = [p.firstName, p.lastName].filter(Boolean).join(' ');
     const cached = newsCache[p.id];
-    const newsHtml = cached === undefined
+    const unreadCount = cached === undefined ? undefined : unreadArticles(p.id, cached).length;
+    const newsHtml = unreadCount === undefined
       ? `<span class="news-count no-news" title="Noch nicht geladen">–</span>`
-      : cached.length === 0
-        ? `<span class="news-count no-news" title="Keine News">0</span>`
-        : `<span class="news-count has-news" title="${cached.length} Artikel">${cached.length}</span>`;
+      : unreadCount === 0
+        ? `<span class="news-count no-news" title="Keine ungelesenen News">0</span>`
+        : `<span class="news-count has-news" title="${unreadCount} ungelesene Artikel">${unreadCount}</span>`;
 
     const prioLabel = ['', '⭐ Prio 1', '🔵 Prio 2', '⚫ Prio 3'][p.prio] || '';
     const prioClass = 'prio-' + p.prio;
@@ -2244,7 +2324,7 @@ async function openNewsDrawer(id) {
   if (cached) {
     newsCache[id] = cached;
     renderTable();
-    renderDrawerArticles(cached, fullName);
+    renderDrawerArticles(id, cached);
     return;
   }
 
@@ -2253,7 +2333,7 @@ async function openNewsDrawer(id) {
     newsCache[id] = articles;
     setCachedNews(id, articles);
     renderTable();
-    renderDrawerArticles(articles, fullName);
+    renderDrawerArticles(id, articles);
   } catch (e) {
     document.getElementById('drawerBody').innerHTML = `
       <div class="news-empty">
@@ -2263,7 +2343,7 @@ async function openNewsDrawer(id) {
   }
 }
 
-function renderDrawerArticles(articles, name) {
+function renderDrawerArticles(playerId, articles) {
   if (articles.length === 0) {
     document.getElementById('drawerBody').innerHTML = `
       <div class="news-empty">
@@ -2274,17 +2354,21 @@ function renderDrawerArticles(articles, name) {
     return;
   }
 
-  const html = articles.map(a => {
-    const date = new Date(a.pubDate).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
-    return `<a class="article" href="${a.link}" target="_blank" rel="noopener">
-      <div class="article-source">${escHtml(a.source)}</div>
-      <div class="article-title">${escHtml(a.title)}</div>
-      <div class="article-meta">${date}</div>
-    </a>`;
-  }).join('');
+  const unread = unreadArticles(playerId, articles);
+  if (unread.length === 0) {
+    document.getElementById('drawerBody').innerHTML = `
+      <div class="news-empty">
+        <p style="font-size:32px;margin-bottom:8px">✅</p>
+        <p>Alles gelesen</p>
+        <p class="sub">${articles.length} Artikel der letzten 24 Stunden wurden bereits als gelesen markiert</p>
+      </div>`;
+    return;
+  }
+
+  const html = unread.map(a => articleCardHtml(playerId, a, { withYear: true })).join('');
 
   document.getElementById('drawerBody').innerHTML = `
-    <div style="margin-bottom:10px;font-size:12px;color:var(--muted)">${articles.length} Artikel gefunden</div>
+    <div style="margin-bottom:10px;font-size:12px;color:var(--muted)">${unread.length} ungelesene Artikel</div>
     <div class="article-list">${html}</div>`;
 }
 
@@ -3883,15 +3967,8 @@ function renderDashboardDate() {
     new Date().toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function dashboardArticleCard(a, playerName) {
-  const date = new Date(a.pubDate).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' });
-  return `<a class="article article-decorated" href="${a.link}" target="_blank" rel="noopener">
-    <span class="article-decoration">🗞️</span>
-    ${playerName ? `<div class="dashboard-article-player">⭐ ${escHtml(playerName)}</div>` : ''}
-    <div class="article-source">${escHtml(a.source)}</div>
-    <div class="article-title">${escHtml(a.title)}</div>
-    <div class="article-meta">${date}</div>
-  </a>`;
+function dashboardArticleCard(playerId, a, playerName) {
+  return articleCardHtml(playerId, a, { decorated: true, playerLabel: playerName });
 }
 
 async function loadDashboard() {
@@ -3985,22 +4062,22 @@ async function loadDashboardTopNews() {
     const articles = cached || await fetchNews(p);
     newsCache[p.id] = articles;
     setCachedNews(p.id, articles);
-    return { player: p, articles };
+    return { player: p, articles: unreadArticles(p.id, articles) };
   }));
 
   const cards = [];
   results.forEach(r => {
     if (r.status === 'fulfilled') {
       const name = [r.value.player.firstName, r.value.player.lastName].filter(Boolean).join(' ');
-      r.value.articles.forEach(a => cards.push({ a, name, ts: a.timestamp || 0 }));
+      r.value.articles.forEach(a => cards.push({ a, name, playerId: r.value.player.id, ts: a.timestamp || 0 }));
     }
   });
   cards.sort((x, y) => y.ts - x.ts);
   countEl.textContent = cards.length;
 
   el.innerHTML = cards.length === 0
-    ? `<div class="dashboard-empty">Keine aktuellen News zu deinen Top-Talenten</div>`
-    : cards.slice(0, 12).map(c => dashboardArticleCard(c.a, c.name)).join('');
+    ? `<div class="dashboard-empty">Keine ungelesenen News zu deinen Top-Talenten</div>`
+    : cards.slice(0, 12).map(c => dashboardArticleCard(c.playerId, c.a, c.name)).join('');
 }
 
 async function loadDashboardGeneralNews() {
@@ -4008,11 +4085,11 @@ async function loadDashboardGeneralNews() {
   const countEl = document.getElementById('dashboardGeneralNewsCount');
   el.innerHTML = `<div class="dashboard-empty">Wird geladen…</div>`;
   try {
-    const articles = await fetchGeneralNews();
+    const articles = unreadArticles('general', await fetchGeneralNews());
     countEl.textContent = articles.length;
     el.innerHTML = articles.length === 0
-      ? `<div class="dashboard-empty">Keine allgemeinen News gefunden</div>`
-      : articles.slice(0, 12).map(a => dashboardArticleCard(a, null)).join('');
+      ? `<div class="dashboard-empty">Keine ungelesenen allgemeinen News</div>`
+      : articles.slice(0, 12).map(a => dashboardArticleCard('general', a, null)).join('');
   } catch (e) {
     countEl.textContent = '!';
     el.innerHTML = `<div class="dashboard-empty">Fehler beim Laden: ${escHtml(e.message)}</div>`;
@@ -4052,20 +4129,14 @@ async function loadBulkNews(prio) {
   renderTable();
 
   const sections = results
-    .filter(r => r.status === 'fulfilled' && r.value.articles.length > 0)
+    .filter(r => r.status === 'fulfilled')
+    .map(r => ({ player: r.value.player, unread: unreadArticles(r.value.player.id, r.value.articles) }))
+    .filter(r => r.unread.length > 0)
     .map(r => {
-      const { player, articles } = r.value;
-      const fullName = [player.firstName, player.lastName].filter(Boolean).join(' ');
-      const artHtml = articles.map(a => {
-        const date = new Date(a.pubDate).toLocaleDateString('de-DE', { day: '2-digit', month: 'short' });
-        return `<a class="article" href="${a.link}" target="_blank" rel="noopener">
-          <div class="article-source">${escHtml(a.source)}</div>
-          <div class="article-title">${escHtml(a.title)}</div>
-          <div class="article-meta">${date}</div>
-        </a>`;
-      }).join('');
+      const fullName = [r.player.firstName, r.player.lastName].filter(Boolean).join(' ');
+      const artHtml = r.unread.map(a => articleCardHtml(r.player.id, a)).join('');
       return `<div class="bulk-section">
-        <h3>${escHtml(fullName)} <span style="color:var(--muted);font-weight:400">(${articles.length})</span></h3>
+        <h3>${escHtml(fullName)} <span style="color:var(--muted);font-weight:400">(${r.unread.length})</span></h3>
         <div class="article-list">${artHtml}</div>
       </div>`;
     }).join('');
@@ -4073,7 +4144,7 @@ async function loadBulkNews(prio) {
   document.getElementById('drawerBody').innerHTML = sections || `
     <div class="news-empty">
       <p style="font-size:32px;margin-bottom:8px">📭</p>
-      <p>Keine ${labels[prio]} News in den letzten 24 Stunden</p>
+      <p>Keine ungelesenen ${labels[prio]} News in den letzten 24 Stunden</p>
     </div>`;
   document.getElementById('drawerGoogleLink').style.display = '';
 }
