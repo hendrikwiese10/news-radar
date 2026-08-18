@@ -578,6 +578,59 @@
       gap: 18px;
       align-items: start;
     }
+
+    /* ELF DES MONATS */
+    .eleven-formation-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .eleven-formation-tabs .btn.active-formation { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .eleven-pitch {
+      position: relative;
+      width: 100%;
+      max-width: 460px;
+      aspect-ratio: 2 / 3;
+      margin: 0 auto;
+      background:
+        linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px) 0 0 / 100% 12.5%,
+        radial-gradient(circle at 50% 50%, transparent 0, transparent 15%, transparent 15.5%),
+        #1a5c2e;
+      border: 2px solid rgba(255,255,255,.25);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .eleven-pitch::before {
+      content: '';
+      position: absolute; left: 0; right: 0; top: 50%;
+      border-top: 2px solid rgba(255,255,255,.25);
+    }
+    .eleven-pitch::after {
+      content: '';
+      position: absolute; left: 50%; top: 50%; width: 70px; height: 70px;
+      border: 2px solid rgba(255,255,255,.25); border-radius: 50%;
+      transform: translate(-50%,-50%);
+    }
+    .eleven-slot { position: absolute; transform: translate(-50%,-50%); z-index: 2; }
+    .eleven-slot-empty, .eleven-slot-filled {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: rgba(15,20,25,.75); border: 2px dashed rgba(255,255,255,.35);
+      color: rgba(255,255,255,.6); font-size: 18px; cursor: pointer; text-align: center;
+      transition: border-color .15s, background .15s;
+    }
+    .eleven-slot-empty:hover { border-color: var(--accent); color: var(--accent); }
+    .eleven-slot-pos { font-size: 9px; font-weight: 700; letter-spacing: .5px; margin-top: 1px; }
+    .eleven-slot-filled {
+      border: 2px solid var(--accent); background: rgba(15,20,25,.9);
+      color: #fff; font-size: 11px; font-weight: 700; padding: 2px; position: relative;
+    }
+    .eleven-slot-name { line-height: 1.2; word-break: break-word; padding: 0 4px; }
+    .eleven-slot-clear {
+      position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--red); color: #fff; border: none; font-size: 10px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; line-height: 1;
+    }
+    .eleven-slot-input {
+      width: 100px; font-size: 12px; padding: 4px 6px; border-radius: 8px;
+      border: 2px solid var(--accent); text-align: center;
+    }
     .dashboard-widget {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -1551,6 +1604,13 @@
       </form>
     </div>
     <div id="spotlightList"></div>
+
+    <div style="margin:36px 0 16px;border-top:1px solid var(--border);padding-top:24px">
+      <h2 style="font-size:20px;margin-bottom:4px">⚽ Elf des Monats</h2>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Formation wählen, dann auf eine Position klicken und einen Spieler aus der Datenbank eintragen. Zuordnungen werden je Formation separat gemerkt.</p>
+    </div>
+    <div class="eleven-formation-tabs" id="elevenFormationTabs"></div>
+    <div class="eleven-pitch" id="elevenPitch"></div>
   </div>
 
   <!-- MONETARISIERUNGSPLAN -->
@@ -1935,6 +1995,7 @@ async function initFirebase() {
     subscribeNations();
     subscribeQualityControl();
     subscribeSpotlight();
+    subscribeEleven();
     subscribeMonetization();
     subscribeReadNews();
     subscribePostMetrics();
@@ -2171,6 +2232,8 @@ function switchTab(tab) {
     // Live über den weekQ-Listener in initWochenplanRead() befüllt.
   } else if (tab === 'spotlight') {
     renderSpotlight();
+    renderElevenFormationTabs();
+    renderEleven();
   } else if (tab === 'monetarisierung') {
     renderMonetization();
   } else {
@@ -3018,6 +3081,148 @@ function toggleSpotlightDone(id, done) {
 function deleteSpotlightEntry(id) {
   fsDeleteDoc(fsDoc(db, 'spotlight', id))
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+// ─── ELF DES MONATS (Formation + Spielerzuordnung, geteilt zwischen Hendrik & Michel) ──
+// Koordinaten in % innerhalb des Spielfelds (x von links, y von oben - TW unten).
+const ELEVEN_FORMATIONS = {
+  '4-3-3': [
+    { pos: 'TW', x: 50, y: 92 },
+    { pos: 'LV', x: 15, y: 72 }, { pos: 'IV', x: 37, y: 76 }, { pos: 'IV', x: 63, y: 76 }, { pos: 'RV', x: 85, y: 72 },
+    { pos: 'ZM', x: 30, y: 50 }, { pos: 'ZM', x: 50, y: 45 }, { pos: 'ZM', x: 70, y: 50 },
+    { pos: 'LA', x: 18, y: 20 }, { pos: 'ST', x: 50, y: 12 }, { pos: 'RA', x: 82, y: 20 },
+  ],
+  '4-4-2': [
+    { pos: 'TW', x: 50, y: 92 },
+    { pos: 'LV', x: 15, y: 72 }, { pos: 'IV', x: 37, y: 76 }, { pos: 'IV', x: 63, y: 76 }, { pos: 'RV', x: 85, y: 72 },
+    { pos: 'LA', x: 15, y: 45 }, { pos: 'ZM', x: 38, y: 48 }, { pos: 'ZM', x: 62, y: 48 }, { pos: 'RA', x: 85, y: 45 },
+    { pos: 'ST', x: 38, y: 15 }, { pos: 'ST', x: 62, y: 15 },
+  ],
+  '4-2-3-1': [
+    { pos: 'TW', x: 50, y: 92 },
+    { pos: 'LV', x: 15, y: 72 }, { pos: 'IV', x: 37, y: 76 }, { pos: 'IV', x: 63, y: 76 }, { pos: 'RV', x: 85, y: 72 },
+    { pos: 'DM', x: 38, y: 58 }, { pos: 'DM', x: 62, y: 58 },
+    { pos: 'LA', x: 18, y: 35 }, { pos: 'OM', x: 50, y: 32 }, { pos: 'RA', x: 82, y: 35 },
+    { pos: 'ST', x: 50, y: 12 },
+  ],
+  '3-4-3': [
+    { pos: 'TW', x: 50, y: 92 },
+    { pos: 'IV', x: 28, y: 76 }, { pos: 'IV', x: 50, y: 80 }, { pos: 'IV', x: 72, y: 76 },
+    { pos: 'LV', x: 12, y: 50 }, { pos: 'ZM', x: 38, y: 52 }, { pos: 'ZM', x: 62, y: 52 }, { pos: 'RV', x: 88, y: 50 },
+    { pos: 'LA', x: 18, y: 20 }, { pos: 'ST', x: 50, y: 12 }, { pos: 'RA', x: 82, y: 20 },
+  ],
+  '3-5-2': [
+    { pos: 'TW', x: 50, y: 92 },
+    { pos: 'IV', x: 28, y: 76 }, { pos: 'IV', x: 50, y: 80 }, { pos: 'IV', x: 72, y: 76 },
+    { pos: 'LV', x: 10, y: 52 }, { pos: 'ZM', x: 33, y: 50 }, { pos: 'ZM', x: 50, y: 46 }, { pos: 'ZM', x: 67, y: 50 }, { pos: 'RV', x: 90, y: 52 },
+    { pos: 'ST', x: 38, y: 15 }, { pos: 'ST', x: 62, y: 15 },
+  ],
+  '4-1-4-1': [
+    { pos: 'TW', x: 50, y: 92 },
+    { pos: 'LV', x: 15, y: 74 }, { pos: 'IV', x: 37, y: 78 }, { pos: 'IV', x: 63, y: 78 }, { pos: 'RV', x: 85, y: 74 },
+    { pos: 'DM', x: 50, y: 58 },
+    { pos: 'LA', x: 15, y: 38 }, { pos: 'ZM', x: 38, y: 40 }, { pos: 'ZM', x: 62, y: 40 }, { pos: 'RA', x: 85, y: 38 },
+    { pos: 'ST', x: 50, y: 12 },
+  ],
+};
+
+let elevenFormation = '4-3-3';
+let elevenAssignments = {}; // { [formation]: { [slotIndex]: playerId } }
+let editingElevenSlot = null;
+let unsubscribeEleven = null;
+
+function subscribeEleven() {
+  if (unsubscribeEleven) unsubscribeEleven();
+  unsubscribeEleven = fsOnSnapshot(fsDoc(db, 'meta', 'elevenOfMonth'), (snap) => {
+    const data = snap.exists() ? snap.data() : {};
+    elevenFormation = data.formation || elevenFormation;
+    elevenAssignments = data.assignments || {};
+    if (activeTab === 'spotlight') { renderElevenFormationTabs(); renderEleven(); }
+  }, (err) => console.error('eleven listener error', err));
+}
+
+function saveElevenState() {
+  fsSetDoc(fsDoc(db, 'meta', 'elevenOfMonth'), { formation: elevenFormation, assignments: elevenAssignments })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function renderElevenFormationTabs() {
+  const el = document.getElementById('elevenFormationTabs');
+  if (!el) return;
+  el.innerHTML = Object.keys(ELEVEN_FORMATIONS).map(f =>
+    `<button class="btn btn-ghost btn-sm ${f === elevenFormation ? 'active-formation' : ''}" onclick="setElevenFormation('${f}')">${f}</button>`
+  ).join('');
+}
+
+function setElevenFormation(f) {
+  elevenFormation = f;
+  editingElevenSlot = null;
+  renderElevenFormationTabs();
+  renderEleven();
+  saveElevenState();
+}
+
+function renderEleven() {
+  const wrap = document.getElementById('elevenPitch');
+  if (!wrap) return;
+  const slots = ELEVEN_FORMATIONS[elevenFormation];
+  const assigned = elevenAssignments[elevenFormation] || {};
+
+  wrap.innerHTML = slots.map((slot, idx) => {
+    const playerId = assigned[idx];
+    const player = playerId ? players.find(p => p.id === playerId) : null;
+    let inner;
+    if (editingElevenSlot === idx) {
+      inner = `<input class="eleven-slot-input" id="elevenSlotInput" list="spotlightPlayerNames" placeholder="Spieler…"
+        value="${player ? escHtml([player.firstName, player.lastName].filter(Boolean).join(' ')) : ''}"
+        onkeydown="if(event.key==='Enter') this.blur(); if(event.key==='Escape') { editingElevenSlot=null; renderEleven(); }"
+        onblur="commitElevenSlot(${idx}, this.value)" />`;
+    } else if (player) {
+      const label = player.lastName || player.firstName;
+      inner = `<div class="eleven-slot-filled" onclick="startElevenSlotEdit(${idx})" title="Klicken zum Ändern">
+        <button class="eleven-slot-clear" onclick="event.stopPropagation(); clearElevenSlot(${idx})" title="Entfernen">✕</button>
+        <div class="eleven-slot-name">${escHtml(label)}</div>
+      </div>`;
+    } else {
+      inner = `<div class="eleven-slot-empty" onclick="startElevenSlotEdit(${idx})">+<span class="eleven-slot-pos">${escHtml(slot.pos)}</span></div>`;
+    }
+    return `<div class="eleven-slot" style="left:${slot.x}%;top:${slot.y}%">${inner}</div>`;
+  }).join('');
+
+  if (editingElevenSlot !== null) {
+    const input = document.getElementById('elevenSlotInput');
+    if (input) { input.focus(); input.select(); }
+  }
+}
+
+function startElevenSlotEdit(idx) {
+  editingElevenSlot = idx;
+  renderEleven();
+}
+
+function commitElevenSlot(idx, typedName) {
+  editingElevenSlot = null;
+  const name = typedName.trim();
+  if (!name) { renderEleven(); return; }
+
+  const match = players.find(p =>
+    [p.firstName, p.lastName].filter(Boolean).join(' ').toLowerCase() === name.toLowerCase());
+  if (!match) {
+    showToast('Spieler nicht in der Datenbank gefunden', 'error');
+    renderEleven();
+    return;
+  }
+
+  if (!elevenAssignments[elevenFormation]) elevenAssignments[elevenFormation] = {};
+  elevenAssignments[elevenFormation][idx] = match.id;
+  renderEleven();
+  saveElevenState();
+}
+
+function clearElevenSlot(idx) {
+  if (elevenAssignments[elevenFormation]) delete elevenAssignments[elevenFormation][idx];
+  renderEleven();
+  saveElevenState();
 }
 
 // ─── MONETARISIERUNGSPLAN (Ideen mit Status, geteilt zwischen Hendrik & Michel) ──
