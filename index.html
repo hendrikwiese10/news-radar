@@ -1216,6 +1216,7 @@
   <button class="tab" id="tab-nationalmannschaft" onclick="switchTab('nationalmannschaft')">🇩🇪 Nationalmannschaft</button>
   <button class="tab" id="tab-zahlen" onclick="switchTab('zahlen')">📊 Zahlen der Woche</button>
   <button class="tab" id="tab-spotlight" onclick="switchTab('spotlight')">🎯 Spotlight</button>
+  <button class="tab" id="tab-monetarisierung" onclick="switchTab('monetarisierung')">💰 Monetarisierungsplan</button>
 </nav>
 
 <main>
@@ -1550,6 +1551,14 @@
       </form>
     </div>
     <div id="spotlightList"></div>
+  </div>
+
+  <!-- MONETARISIERUNGSPLAN -->
+  <div id="monetarisierungView" style="display:none">
+    <div class="dashboard-header">
+      <h2>💰 Monetarisierungsplan</h2>
+    </div>
+    <div class="dashboard-empty" style="margin-top:16px">Noch leer – sag mir, wie der Tab aufgebaut sein soll.</div>
   </div>
 </main>
 
@@ -2115,6 +2124,7 @@ function switchTab(tab) {
   document.getElementById('tab-nationalmannschaft').classList.toggle('active', tab === 'nationalmannschaft');
   document.getElementById('tab-zahlen').classList.toggle('active', tab === 'zahlen');
   document.getElementById('tab-spotlight').classList.toggle('active', tab === 'spotlight');
+  document.getElementById('tab-monetarisierung').classList.toggle('active', tab === 'monetarisierung');
 
   document.getElementById('dashboardView').style.display = tab === 'dashboard' ? '' : 'none';
   document.getElementById('playerListView').style.display = (tab === 'all' || tab === 'footique') ? '' : 'none';
@@ -2127,6 +2137,7 @@ function switchTab(tab) {
   document.getElementById('nationalmannschaftView').style.display = tab === 'nationalmannschaft' ? '' : 'none';
   document.getElementById('zahlenView').style.display = tab === 'zahlen' ? '' : 'none';
   document.getElementById('spotlightView').style.display = tab === 'spotlight' ? '' : 'none';
+  document.getElementById('monetarisierungView').style.display = tab === 'monetarisierung' ? '' : 'none';
 
   if (tab === 'dashboard') {
     loadDashboard();
