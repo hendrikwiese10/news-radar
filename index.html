@@ -1557,8 +1557,16 @@
   <div id="monetarisierungView" style="display:none">
     <div class="dashboard-header">
       <h2>💰 Monetarisierungsplan</h2>
+      <p style="color:var(--muted);font-size:13px;margin-top:4px">Ideen zur Monetarisierung mit Status – jederzeit ergänzbar.</p>
     </div>
-    <div class="dashboard-empty" style="margin-top:16px">Noch leer – sag mir, wie der Tab aufgebaut sein soll.</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin:16px 0">
+      <form onsubmit="event.preventDefault(); addMonetizationIdea()" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="monetizationIdea" placeholder="Idee…" style="flex:1.2;min-width:200px" />
+        <input id="monetizationNote" placeholder="Notiz (optional)" style="flex:1.6;min-width:220px" />
+        <button class="btn btn-primary btn-sm" type="submit">+ Hinzufügen</button>
+      </form>
+    </div>
+    <div id="monetizationList"></div>
   </div>
 </main>
 
@@ -1927,6 +1935,7 @@ async function initFirebase() {
     subscribeNations();
     subscribeQualityControl();
     subscribeSpotlight();
+    subscribeMonetization();
     subscribeReadNews();
     subscribePostMetrics();
     subscribeWeeklyFollowers(localDateStr(zahlenWeekMonday));
@@ -2162,6 +2171,8 @@ function switchTab(tab) {
     // Live über den weekQ-Listener in initWochenplanRead() befüllt.
   } else if (tab === 'spotlight') {
     renderSpotlight();
+  } else if (tab === 'monetarisierung') {
+    renderMonetization();
   } else {
     renderStats();
     renderTable();
@@ -3006,6 +3017,82 @@ function toggleSpotlightDone(id, done) {
 
 function deleteSpotlightEntry(id) {
   fsDeleteDoc(fsDoc(db, 'spotlight', id))
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+// ─── MONETARISIERUNGSPLAN (Ideen mit Status, geteilt zwischen Hendrik & Michel) ──
+const MONETIZATION_STATUSES = ['Idee', 'In Prüfung', 'Aktiv', 'Verworfen'];
+const MONETIZATION_STATUS_STYLES = {
+  'Idee':       { color: '#94a3b8', bg: 'rgba(148,163,184,.15)' },
+  'In Prüfung': { color: '#f59e0b', bg: 'rgba(245,158,11,.15)' },
+  'Aktiv':      { color: '#10b981', bg: 'rgba(16,185,129,.15)' },
+  'Verworfen':  { color: '#ef4444', bg: 'rgba(239,68,68,.15)' },
+};
+
+let monetizationIdeas = [];
+let unsubscribeMonetization = null;
+
+function subscribeMonetization() {
+  if (unsubscribeMonetization) unsubscribeMonetization();
+  unsubscribeMonetization = fsOnSnapshot(fsCollection(db, 'monetization'), (snap) => {
+    monetizationIdeas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (activeTab === 'monetarisierung') renderMonetization();
+  }, (err) => console.error('monetization listener error', err));
+}
+
+function renderMonetization() {
+  const el = document.getElementById('monetizationList');
+  if (!el) return;
+  if (monetizationIdeas.length === 0) {
+    el.innerHTML = '<div class="dashboard-empty">Noch keine Ideen erfasst – oben eintragen.</div>';
+    return;
+  }
+
+  const sorted = monetizationIdeas.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+  el.innerHTML = MONETIZATION_STATUSES.map(status => {
+    const group = sorted.filter(i => i.status === status);
+    if (group.length === 0) return '';
+    const style = MONETIZATION_STATUS_STYLES[status];
+    return `<div style="margin-bottom:20px">
+      <div style="font-size:12px;font-weight:700;color:${style.color};text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">${escHtml(status)} <span style="color:var(--muted);font-weight:400">(${group.length})</span></div>
+      ${group.map(monetizationCardHtml).join('')}
+    </div>`;
+  }).join('');
+}
+
+function monetizationCardHtml(i) {
+  const style = MONETIZATION_STATUS_STYLES[i.status] || MONETIZATION_STATUS_STYLES['Idee'];
+  return `<div class="today-content-card" style="margin-bottom:8px;display:flex;gap:12px;align-items:flex-start">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:14px">${escHtml(i.idea || '')}</div>
+      ${i.note ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${escHtml(i.note)}</div>` : ''}
+    </div>
+    <select style="color:${style.color};background:${style.bg};border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;flex-shrink:0"
+      onchange="updateMonetizationField('${i.id}', 'status', this.value)">
+      ${MONETIZATION_STATUSES.map(s => `<option value="${s}" ${s === i.status ? 'selected' : ''}>${s}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="deleteMonetizationIdea('${i.id}')" title="Löschen">✕</button>
+  </div>`;
+}
+
+function addMonetizationIdea() {
+  const ideaEl = document.getElementById('monetizationIdea');
+  const noteEl = document.getElementById('monetizationNote');
+  const idea = ideaEl.value.trim();
+  if (!idea) { showToast('Bitte eine Idee eintragen', 'error'); return; }
+  fsAddDoc(fsCollection(db, 'monetization'), { idea, note: noteEl.value.trim(), status: 'Idee', createdAt: Date.now() })
+    .then(() => { ideaEl.value = ''; noteEl.value = ''; })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function updateMonetizationField(id, field, value) {
+  fsUpdateDoc(fsDoc(db, 'monetization', id), { [field]: value })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+function deleteMonetizationIdea(id) {
+  fsDeleteDoc(fsDoc(db, 'monetization', id))
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
