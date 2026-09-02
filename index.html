@@ -2098,6 +2098,55 @@ function unreadArticles(playerId, articles) {
   return (articles || []).filter(a => !isArticleRead(playerId, a.link));
 }
 
+// ─── ARTIKEL-LINKS AUFLÖSEN ──────────────────────────────────────────────────
+// Google-News-Links sind Weiterleitungen (news.google.com/rss/articles/...).
+// Google zeigt auf dieser Zwischenstation gelegentlich eine Bot-Schutzseite,
+// bevor es zum eigentlichen Medium weiterleitet. Wir lösen den echten
+// Ziel-Link stattdessen einmalig serverseitig auf und cachen ihn, damit man
+// direkt beim Medium landet statt über Google.
+const RESOLVED_LINK_CACHE_KEY = 'resolved_links_cache';
+
+function getResolvedLinkCache() {
+  try { return JSON.parse(localStorage.getItem(RESOLVED_LINK_CACHE_KEY) || '{}'); } catch { return {}; }
+}
+
+function setResolvedLink(googleUrl, realUrl) {
+  try {
+    const cache = getResolvedLinkCache();
+    cache[googleUrl] = realUrl;
+    localStorage.setItem(RESOLVED_LINK_CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
+async function openArticleLink(key, event) {
+  event.preventDefault();
+  const entry = articleRegistry[key];
+  const googleUrl = entry && entry.link;
+  if (!googleUrl) return;
+
+  const cached = getResolvedLinkCache()[googleUrl];
+  if (cached) {
+    window.open(cached, '_blank', 'noopener');
+    return;
+  }
+
+  // Leeres Tab sofort (noch synchron im Klick) öffnen - sonst blockt der
+  // Browser das window.open() nach dem await als Popup.
+  const win = window.open('', '_blank');
+  if (win) win.opener = null;
+
+  let realUrl = googleUrl;
+  try {
+    const res = await fetch(`/api/resolve?url=${encodeURIComponent(googleUrl)}`);
+    const data = await res.json();
+    if (data.url) realUrl = data.url;
+  } catch {}
+
+  setResolvedLink(googleUrl, realUrl);
+  if (win && !win.closed) win.location.href = realUrl;
+  else window.open(realUrl, '_blank', 'noopener');
+}
+
 let lastReadUndo = null;
 let readUndoTimer = null;
 
@@ -2151,7 +2200,7 @@ function articleCardHtml(playerId, a, { decorated = false, playerLabel = null, w
     withYear ? { day: '2-digit', month: 'short', year: 'numeric' } : { day: '2-digit', month: 'short' });
   const key = articleReadKey(playerId, a.link);
   articleRegistry[key] = { playerId, link: a.link, title: a.title, refresh };
-  return `<a class="article ${decorated ? 'article-decorated' : ''}" id="art_${key}" href="${a.link}" target="_blank" rel="noopener">
+  return `<a class="article ${decorated ? 'article-decorated' : ''}" id="art_${key}" href="${a.link}" target="_blank" rel="noopener" onclick="return openArticleLink('${key}', event)">
     <span class="article-read-toggle" onclick="markArticleRead('${key}', event)" title="Als gelesen markieren – wird dann nicht mehr angezeigt">✓</span>
     ${decorated ? '<span class="article-decoration">🗞️</span>' : ''}
     ${playerLabel ? `<div class="dashboard-article-player">⭐ ${escHtml(playerLabel)}</div>` : ''}

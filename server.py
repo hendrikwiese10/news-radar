@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'api
 from spielplan import get_club_matches
 from analyze_week import analyze_week
 from news import build_rss_url  # Länder-/Sprachlogik einmal gepflegt in api/news.py
+from resolve import resolve_google_link
 
 PORT = 3456
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -146,6 +147,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
             except Exception as e:
                 self._json(500, {'error': str(e)})
+            return
+
+        # ── Google-News-Weiterleitungslink zur echten Ziel-URL auflösen ───────
+        if parsed.path in ('/resolve', '/api/resolve'):
+            params = urllib.parse.parse_qs(parsed.query)
+            url = params.get('url', [''])[0]
+            if not url or not url.startswith('https://news.google.com/'):
+                self._json(400, {'error': 'Ungültige oder fehlende URL'})
+                return
+            self._json(200, {'url': resolve_google_link(url)})
             return
 
         # ── Statische Dateien ────────────────────────────────────────────────
