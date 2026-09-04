@@ -413,13 +413,20 @@
 
     /* BULK NEWS RESULTS */
     .bulk-section { margin-bottom: 24px; }
+    .bulk-section-header {
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
     .bulk-section h3 {
       font-size: 13px;
       font-weight: 700;
       color: var(--text);
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid var(--border);
+    }
+    .bulk-section-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
     }
 
     /* TOAST */
@@ -4427,9 +4434,13 @@ function renderBulkSections(prio, label, results) {
     .filter(r => r.unread.length > 0)
     .map(r => {
       const fullName = [r.player.firstName, r.player.lastName].filter(Boolean).join(' ');
+      const meta = [r.player.pos, r.player.birth, r.player.nation].filter(Boolean).join(' · ');
       const artHtml = r.unread.map(a => articleCardHtml(r.player.id, a, { refresh })).join('');
       return `<div class="bulk-section">
-        <h3>${escHtml(fullName)} <span style="color:var(--muted);font-weight:400">(${r.unread.length})</span></h3>
+        <div class="bulk-section-header">
+          <h3>${escHtml(fullName)} <span style="color:var(--muted);font-weight:400">(${r.unread.length})</span></h3>
+          ${meta ? `<div class="bulk-section-meta">${escHtml(meta)}</div>` : ''}
+        </div>
         <div class="article-list">${artHtml}</div>
       </div>`;
     }).join('');
