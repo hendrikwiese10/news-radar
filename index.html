@@ -1278,6 +1278,7 @@
   <button class="tab" id="tab-aufgabenplan" onclick="switchTab('aufgabenplan')">✅ Aufgabenplan</button>
   <button class="tab" id="tab-netzwerk" onclick="switchTab('netzwerk')">🌍 Netzwerk</button>
   <button class="tab" id="tab-qualitaetskontrolle" onclick="switchTab('qualitaetskontrolle')">🔍 Qualitätskontrolle</button>
+  <button class="tab" id="tab-ideen" onclick="switchTab('ideen')">💡 Ideen aller Art</button>
   <button class="tab" id="tab-nationalmannschaft" onclick="switchTab('nationalmannschaft')">🇩🇪 Nationalmannschaft</button>
   <button class="tab" id="tab-zahlen" onclick="switchTab('zahlen')">📊 Zahlen der Woche</button>
   <button class="tab" id="tab-spotlight" onclick="switchTab('spotlight')">🎯 Spotlight</button>
@@ -1512,6 +1513,30 @@
     </div>
     <div style="font-weight:700;font-size:14px;margin:28px 0 8px">📚 Frühere Wochen</div>
     <div id="qcHistory"></div>
+  </div>
+
+  <!-- IDEEN ALLER ART (freie Notizen, dauerhaft, kein Wochenreset) -->
+  <div id="ideenView" style="display:none">
+    <div class="spielplan-header">
+      <div class="spielplan-month-nav">
+        <h2>💡 Ideen aller Art</h2>
+      </div>
+    </div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Freier Platz für Ideen, Gedanken und Links – jeder trägt hier ein, was ihm einfällt. Bleibt dauerhaft erhalten.</div>
+    <div class="aufgabenplan-columns">
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title" style="color:#ef4444">Hendrik</div>
+        <textarea id="ideenHendrik" class="qc-textarea" placeholder="Ideen, Gedanken, Links…"></textarea>
+      </div>
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title" style="color:#eab308">Michel</div>
+        <textarea id="ideenMichel" class="qc-textarea" placeholder="Ideen, Gedanken, Links…"></textarea>
+      </div>
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title" style="color:#3b82f6">Liv</div>
+        <textarea id="ideenLiv" class="qc-textarea" placeholder="Ideen, Gedanken, Links…"></textarea>
+      </div>
+    </div>
   </div>
 
   <div id="nationalmannschaftView" style="display:none">
@@ -2000,6 +2025,7 @@ async function initFirebase() {
     await seedNationsIfNeeded();
     subscribeNations();
     subscribeQualityControl();
+    subscribeIdeen();
     subscribeSpotlight();
     subscribeEleven();
     subscribeReadNews();
@@ -2219,6 +2245,7 @@ function switchTab(tab) {
   document.getElementById('tab-aufgabenplan').classList.toggle('active', tab === 'aufgabenplan');
   document.getElementById('tab-netzwerk').classList.toggle('active', tab === 'netzwerk');
   document.getElementById('tab-qualitaetskontrolle').classList.toggle('active', tab === 'qualitaetskontrolle');
+  document.getElementById('tab-ideen').classList.toggle('active', tab === 'ideen');
   document.getElementById('tab-nationalmannschaft').classList.toggle('active', tab === 'nationalmannschaft');
   document.getElementById('tab-zahlen').classList.toggle('active', tab === 'zahlen');
   document.getElementById('tab-spotlight').classList.toggle('active', tab === 'spotlight');
@@ -2231,6 +2258,7 @@ function switchTab(tab) {
   document.getElementById('aufgabenplanView').style.display = tab === 'aufgabenplan' ? '' : 'none';
   document.getElementById('netzwerkView').style.display = tab === 'netzwerk' ? '' : 'none';
   document.getElementById('qualitaetskontrolleView').style.display = tab === 'qualitaetskontrolle' ? '' : 'none';
+  document.getElementById('ideenView').style.display = tab === 'ideen' ? '' : 'none';
   document.getElementById('nationalmannschaftView').style.display = tab === 'nationalmannschaft' ? '' : 'none';
   document.getElementById('zahlenView').style.display = tab === 'zahlen' ? '' : 'none';
   document.getElementById('spotlightView').style.display = tab === 'spotlight' ? '' : 'none';
@@ -2252,6 +2280,8 @@ function switchTab(tab) {
     // Wochenwechsel abfangen, falls die App über den Montag hinweg offen blieb
     if (qcWeekId !== currentWeekMonday()) subscribeQualityControl();
     else renderQualityControlHistory();
+  } else if (tab === 'ideen') {
+    // Live über den Ideen-Listener befüllt, kein zusätzliches Rendering nötig.
   } else if (tab === 'nationalmannschaft') {
     renderNationalmannschaft();
   } else if (tab === 'zahlen') {
@@ -3438,6 +3468,42 @@ document.getElementById('qcMichel').addEventListener('input', (e) => {
 document.getElementById('qcLiv').addEventListener('input', (e) => {
   clearTimeout(qcSaveTimerLiv);
   qcSaveTimerLiv = setTimeout(() => saveQualityControlField('liv', e.target.value), 500);
+});
+
+// ─── IDEEN ALLER ART (freie Notizen Hendrik/Michel/Liv, dauerhaft, kein Wochenreset) ──
+let ideen = { hendrik: '', michel: '', liv: '' };
+let unsubscribeIdeen = null;
+let ideenSaveTimerHendrik = null, ideenSaveTimerMichel = null, ideenSaveTimerLiv = null;
+
+function subscribeIdeen() {
+  if (unsubscribeIdeen) unsubscribeIdeen();
+  unsubscribeIdeen = fsOnSnapshot(fsDoc(db, 'meta', 'ideen'), (snap) => {
+    ideen = snap.exists() ? snap.data() : { hendrik: '', michel: '', liv: '' };
+    const hEl = document.getElementById('ideenHendrik');
+    const mEl = document.getElementById('ideenMichel');
+    const lEl = document.getElementById('ideenLiv');
+    if (document.activeElement !== hEl && hEl.value !== (ideen.hendrik || '')) hEl.value = ideen.hendrik || '';
+    if (document.activeElement !== mEl && mEl.value !== (ideen.michel || '')) mEl.value = ideen.michel || '';
+    if (document.activeElement !== lEl && lEl.value !== (ideen.liv || '')) lEl.value = ideen.liv || '';
+  }, (err) => console.error('ideen listener error', err));
+}
+
+function saveIdeenField(field, value) {
+  fsSetDoc(fsDoc(db, 'meta', 'ideen'), { [field]: value }, { merge: true })
+    .catch(err => showToast('Fehler: ' + err.message, 'error'));
+}
+
+document.getElementById('ideenHendrik').addEventListener('input', (e) => {
+  clearTimeout(ideenSaveTimerHendrik);
+  ideenSaveTimerHendrik = setTimeout(() => saveIdeenField('hendrik', e.target.value), 500);
+});
+document.getElementById('ideenMichel').addEventListener('input', (e) => {
+  clearTimeout(ideenSaveTimerMichel);
+  ideenSaveTimerMichel = setTimeout(() => saveIdeenField('michel', e.target.value), 500);
+});
+document.getElementById('ideenLiv').addEventListener('input', (e) => {
+  clearTimeout(ideenSaveTimerLiv);
+  ideenSaveTimerLiv = setTimeout(() => saveIdeenField('liv', e.target.value), 500);
 });
 
 // ─── ZAHLEN DER WOCHE: POST-METRIKEN & WÖCHENTLICHE FOLLOWER-ZAHLEN ─────────
