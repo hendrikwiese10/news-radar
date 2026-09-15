@@ -1442,11 +1442,12 @@
     <div class="spielplan-legend">
       <span class="spielplan-legend-item"><span class="spielplan-legend-dot" style="background:#ef4444"></span>Hendrik</span>
       <span class="spielplan-legend-item"><span class="spielplan-legend-dot" style="background:#eab308"></span>Michel</span>
+      <span class="spielplan-legend-item"><span class="spielplan-legend-dot" style="background:#3b82f6"></span>Liv</span>
     </div>
     <div id="monatsplanGrid" class="spielplan-grid"></div>
   </div>
 
-  <!-- AUFGABENPLAN (To-dos für Hendrik/Michel) -->
+  <!-- AUFGABENPLAN (To-dos für Hendrik/Michel/Liv) -->
   <div id="aufgabenplanView" style="display:none">
     <div class="spielplan-header">
       <div class="spielplan-month-nav">
@@ -1461,6 +1462,10 @@
       <div class="aufgabenplan-person-column">
         <div class="aufgabenplan-column-title" style="color:#eab308">Für Michel</div>
         <div class="aufgabenplan-days" id="aufgabenplanDaysMichel"></div>
+      </div>
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title" style="color:#3b82f6">Für Liv</div>
+        <div class="aufgabenplan-days" id="aufgabenplanDaysLiv"></div>
       </div>
     </div>
   </div>
@@ -1499,6 +1504,10 @@
       <div class="aufgabenplan-person-column">
         <div class="aufgabenplan-column-title" style="color:#eab308">Michel</div>
         <textarea id="qcMichel" class="qc-textarea" placeholder="Was lief diese Woche nicht optimal?"></textarea>
+      </div>
+      <div class="aufgabenplan-person-column">
+        <div class="aufgabenplan-column-title" style="color:#3b82f6">Liv</div>
+        <textarea id="qcLiv" class="qc-textarea" placeholder="Was lief diese Woche nicht optimal?"></textarea>
       </div>
     </div>
     <div style="font-weight:700;font-size:14px;margin:28px 0 8px">📚 Frühere Wochen</div>
@@ -1677,6 +1686,7 @@
       <select id="mpPerson">
         <option value="Hendrik">Hendrik</option>
         <option value="Michel">Michel</option>
+        <option value="Liv">Liv</option>
       </select>
     </div>
     <div class="form-row">
@@ -2809,8 +2819,8 @@ function renderSpielplanCalendar() {
   }
 }
 
-// ─── MONATSPLAN (private Termine Hendrik/Michel) ────────────────────────────
-const MONATSPLAN_COLORS = { 'Hendrik': '#ef4444', 'Michel': '#eab308' };
+// ─── MONATSPLAN (private Termine Hendrik/Michel/Liv) ────────────────────────
+const MONATSPLAN_COLORS = { 'Hendrik': '#ef4444', 'Michel': '#eab308', 'Liv': '#3b82f6' };
 
 let monatsplanYear = today.getFullYear();
 let monatsplanMonth = today.getMonth();
@@ -2922,7 +2932,7 @@ function deleteMonatsplanEventConfirm(id) {
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
-// ─── AUFGABENPLAN (To-dos für Hendrik/Michel, je Wochentag) ─────────────────
+// ─── AUFGABENPLAN (To-dos für Hendrik/Michel/Liv, je Wochentag) ─────────────
 const AUFGABEN_WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
 let tasks = [];
@@ -2940,6 +2950,7 @@ function subscribeTasks() {
 function renderAufgabenplan() {
   renderAufgabenplanPerson('Hendrik', 'aufgabenplanDaysHendrik');
   renderAufgabenplanPerson('Michel', 'aufgabenplanDaysMichel');
+  renderAufgabenplanPerson('Liv', 'aufgabenplanDaysLiv');
 }
 
 function renderAufgabenplanPerson(person, elementId) {
@@ -3315,11 +3326,11 @@ function subscribeNetwork() {
 }
 
 // ─── QUALITÄTSKONTROLLE (pro Woche ein Eintrag, Historie bleibt erhalten) ────
-let qualityControl = { hendrik: '', michel: '' }; // nur die aktuelle Woche (fürs Dashboard-Fokus-Thema)
+let qualityControl = { hendrik: '', michel: '', liv: '' }; // nur die aktuelle Woche (fürs Dashboard-Fokus-Thema)
 let qualityControlHistory = [];                   // alle Wochen, neueste zuerst
 let qcWeekId = null;                              // Montag der aktuellen Woche als YYYY-MM-DD
 let unsubscribeQualityControl = null;
-let qcSaveTimerHendrik = null, qcSaveTimerMichel = null;
+let qcSaveTimerHendrik = null, qcSaveTimerMichel = null, qcSaveTimerLiv = null;
 
 function qcWeekRangeLabel(weekId) {
   const [y, m, d] = weekId.split('-').map(Number);
@@ -3341,12 +3352,14 @@ function subscribeQualityControl() {
       .sort((a, b) => String(b.weekId).localeCompare(String(a.weekId)));
 
     const current = qualityControlHistory.find(w => w.weekId === qcWeekId);
-    qualityControl = { hendrik: current?.hendrik || '', michel: current?.michel || '' };
+    qualityControl = { hendrik: current?.hendrik || '', michel: current?.michel || '', liv: current?.liv || '' };
 
     const hEl = document.getElementById('qcHendrik');
     const mEl = document.getElementById('qcMichel');
+    const lEl = document.getElementById('qcLiv');
     if (document.activeElement !== hEl && hEl.value !== qualityControl.hendrik) hEl.value = qualityControl.hendrik;
     if (document.activeElement !== mEl && mEl.value !== qualityControl.michel) mEl.value = qualityControl.michel;
+    if (document.activeElement !== lEl && lEl.value !== qualityControl.liv) lEl.value = qualityControl.liv;
 
     renderQualityControlHistory();
     if (activeTab === 'dashboard') renderDashboardFocusTheme();
@@ -3381,7 +3394,7 @@ function renderQualityControlHistory() {
   if (!el) return;
 
   const past = qualityControlHistory.filter(w =>
-    w.weekId !== qcWeekId && ((w.hendrik || '') + (w.michel || '')).trim()
+    w.weekId !== qcWeekId && ((w.hendrik || '') + (w.michel || '') + (w.liv || '')).trim()
   );
 
   if (past.length === 0) {
@@ -3392,13 +3405,17 @@ function renderQualityControlHistory() {
   el.innerHTML = past.map(w => `
     <div class="today-content-card" style="margin-bottom:10px">
       <div style="font-weight:700;font-size:13px;margin-bottom:8px">${escHtml(qcWeekRangeLabel(w.weekId))}</div>
-      ${(w.hendrik || '').trim() ? `<div style="margin-bottom:${(w.michel || '').trim() ? '10px' : '0'}">
+      ${(w.hendrik || '').trim() ? `<div style="margin-bottom:${(w.michel || '').trim() || (w.liv || '').trim() ? '10px' : '0'}">
         <div style="font-size:11px;font-weight:700;color:#ef4444;text-transform:uppercase;margin-bottom:4px">Hendrik</div>
         <div style="font-size:13px;white-space:pre-wrap">${escHtml(w.hendrik)}</div>
       </div>` : ''}
-      ${(w.michel || '').trim() ? `<div>
+      ${(w.michel || '').trim() ? `<div style="margin-bottom:${(w.liv || '').trim() ? '10px' : '0'}">
         <div style="font-size:11px;font-weight:700;color:#eab308;text-transform:uppercase;margin-bottom:4px">Michel</div>
         <div style="font-size:13px;white-space:pre-wrap">${escHtml(w.michel)}</div>
+      </div>` : ''}
+      ${(w.liv || '').trim() ? `<div>
+        <div style="font-size:11px;font-weight:700;color:#3b82f6;text-transform:uppercase;margin-bottom:4px">Liv</div>
+        <div style="font-size:13px;white-space:pre-wrap">${escHtml(w.liv)}</div>
       </div>` : ''}
     </div>
   `).join('');
@@ -3417,6 +3434,10 @@ document.getElementById('qcHendrik').addEventListener('input', (e) => {
 document.getElementById('qcMichel').addEventListener('input', (e) => {
   clearTimeout(qcSaveTimerMichel);
   qcSaveTimerMichel = setTimeout(() => saveQualityControlField('michel', e.target.value), 500);
+});
+document.getElementById('qcLiv').addEventListener('input', (e) => {
+  clearTimeout(qcSaveTimerLiv);
+  qcSaveTimerLiv = setTimeout(() => saveQualityControlField('liv', e.target.value), 500);
 });
 
 // ─── ZAHLEN DER WOCHE: POST-METRIKEN & WÖCHENTLICHE FOLLOWER-ZAHLEN ─────────
@@ -3519,14 +3540,16 @@ function renderDashboardFocusTheme() {
   if (!el) return;
   const h = (qualityControl.hendrik || '').trim();
   const m = (qualityControl.michel || '').trim();
-  if (countEl) countEl.textContent = `${(h ? 1 : 0) + (m ? 1 : 0)}/2`;
-  if (!h && !m) {
+  const l = (qualityControl.liv || '').trim();
+  if (countEl) countEl.textContent = `${(h ? 1 : 0) + (m ? 1 : 0) + (l ? 1 : 0)}/3`;
+  if (!h && !m && !l) {
     el.innerHTML = '<div class="dashboard-empty">Noch keine Schwächen erfasst – trag sie im Tab „Qualitätskontrolle" ein.</div>';
     return;
   }
   el.innerHTML = `
-    ${h ? `<div style="margin-bottom:${m ? '10px' : '0'}"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Hendrik</div><div style="font-size:13px;white-space:pre-wrap">${escHtml(h)}</div></div>` : ''}
-    ${m ? `<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Michel</div><div style="font-size:13px;white-space:pre-wrap">${escHtml(m)}</div></div>` : ''}
+    ${h ? `<div style="margin-bottom:${m || l ? '10px' : '0'}"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Hendrik</div><div style="font-size:13px;white-space:pre-wrap">${escHtml(h)}</div></div>` : ''}
+    ${m ? `<div style="margin-bottom:${l ? '10px' : '0'}"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Michel</div><div style="font-size:13px;white-space:pre-wrap">${escHtml(m)}</div></div>` : ''}
+    ${l ? `<div><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px">Liv</div><div style="font-size:13px;white-space:pre-wrap">${escHtml(l)}</div></div>` : ''}
   `;
 }
 
