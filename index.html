@@ -1262,6 +1262,7 @@
     <button class="btn btn-prio" onclick="loadBulkNews(1)" title="Prio-1 News">★ Prio-1 News</button>
     <button class="btn btn-ghost" onclick="loadBulkNews(2)" title="Prio-2 News" style="color:var(--prio2);border-color:rgba(99,102,241,.4)">🔵 Prio-2 News</button>
     <button class="btn btn-ghost" onclick="loadBulkNews(3)" title="Prio-3 News">⚫ Prio-3 News</button>
+    <button class="btn btn-ghost" onclick="loadBulkNews('footique')" title="Footique-News" style="color:var(--accent2);border-color:rgba(108,99,255,.4)">⚡ Footique-News</button>
     <button class="btn btn-ghost" onclick="exportPlayers()" title="Liste exportieren">⬇ Export</button>
     <label class="btn btn-ghost" title="Liste importieren" style="cursor:pointer">⬆ Import<input type="file" accept=".json" onchange="importPlayers(event)" style="display:none"></label>
     <button class="btn btn-primary" onclick="openAddModal()">+ Spieler hinzufügen</button>
@@ -4478,9 +4479,9 @@ async function loadDashboardGeneralNews() {
 // ─── BULK NEWS ───────────────────────────────────────────────────────────────
 
 async function loadBulkNews(prio) {
-  const labels = { 1: '⭐ Prio-1', 2: '🔵 Prio-2', 3: '⚫ Prio-3' };
-  const group = players.filter(p => p.prio === prio);
-  if (group.length === 0) { showToast(`Keine Prio-${prio} Spieler vorhanden`, 'error'); return; }
+  const labels = { 1: '⭐ Prio-1', 2: '🔵 Prio-2', 3: '⚫ Prio-3', footique: '⚡ Footique' };
+  const group = prio === 'footique' ? players.filter(p => p.footique) : players.filter(p => p.prio === prio);
+  if (group.length === 0) { showToast(prio === 'footique' ? 'Keine Footique-Spieler vorhanden' : `Keine Prio-${prio} Spieler vorhanden`, 'error'); return; }
 
   document.getElementById('drawerTitle').textContent = `${labels[prio]} News`;
   document.getElementById('drawerSubtitle').textContent = `${group.length} Spieler · Letzte 24 Stunden`;
