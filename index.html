@@ -2605,6 +2605,7 @@ const SPIELPLAN_ENABLED_NAMES = [
   'linus güther',     // Union Berlin
   'malte brumm',      // Hertha BSC U17 (eigener manueller Spielplan)
   'luca felix',       // Eintracht Frankfurt U16 (eigener manueller Spielplan)
+  'henri döll',       // VfL Bochum U14 (eigener manueller Spielplan)
 ];
 
 // Feste Farbpalette für die individuelle Spieler-Einfärbung im Kalender.
@@ -2617,6 +2618,7 @@ const PLAYER_COLOR_OVERRIDES = {
   'linus güther': '#E2001A',   // Union-Rot
   'malte brumm': '#005CA9',    // Hertha-Blau
   'luca felix': '#E1000F',     // Frankfurt-Rot
+  'henri döll': '#0A64B4',     // Bochum-Blau
 };
 
 function getPlayerColor(player) {
@@ -2713,6 +2715,18 @@ const MANUAL_MATCHES = {
     { date: '2026-11-07', time: '11:00', competition: 'Hessenliga', home: 'FSV Frankfurt', away: 'Eintracht Frankfurt', isHome: false },
     { date: '2026-11-22', time: '11:00', competition: 'Hessenliga', home: 'SV Rot-Weiss Walldorf', away: 'Eintracht Frankfurt', isHome: false },
     { date: '2026-11-28', time: '13:00', competition: 'Hessenliga', home: 'Eintracht Frankfurt', away: 'SG Barockstadt Fulda-Lehnerz', isHome: true },
+  ],
+  'henri döll': [
+    { date: '2026-09-19', time: '11:00', competition: 'Regionalliga', home: '1. FC Köln U14', away: 'VfL Bochum U14', isHome: false },
+    { date: '2026-09-20', time: '13:45', competition: 'Freundschaftsspiel', home: 'VfL Bochum U14', away: 'VfB Waltrop 2', isHome: true },
+    { date: '2026-09-26', time: '12:30', competition: 'Regionalliga', home: 'VfL Bochum U14', away: 'Borussia Mönchengladbach U14', isHome: true },
+    { date: '2026-10-03', time: '11:00', competition: 'Regionalliga', home: 'FC Schalke 04 U14', away: 'VfL Bochum U14', isHome: false },
+    { date: '2026-10-10', time: '12:30', competition: 'Regionalliga', home: 'VfL Bochum U14', away: 'Rot-Weiss Essen U14', isHome: true },
+    { date: '2026-10-31', time: '12:30', competition: 'Freundschaftsspiel', home: 'VfL Bochum U14', away: 'Delbrücker SC', isHome: true },
+    { date: '2026-11-07', time: '13:30', competition: 'Regionalliga', home: 'VfL Bochum U14', away: 'DSC Arminia Bielefeld U14', isHome: true },
+    { date: '2026-11-14', time: '12:30', competition: 'Regionalliga', home: 'VfL Bochum U14', away: 'Fortuna Düsseldorf U14', isHome: true },
+    { date: '2026-11-18', time: '18:00', competition: 'Regionalliga', home: 'Borussia Dortmund U14', away: 'VfL Bochum U14', isHome: false },
+    { date: '2026-11-21', time: '10:45', competition: 'Regionalliga', home: 'VfL Bochum U14', away: 'FC Viktoria Köln U14', isHome: true },
   ],
 };
 
