@@ -2604,6 +2604,7 @@ const WEEKDAYS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 const SPIELPLAN_ENABLED_NAMES = [
   'linus güther',     // Union Berlin
   'malte brumm',      // Hertha BSC U17 (eigener manueller Spielplan)
+  'luca felix',       // Eintracht Frankfurt U16 (eigener manueller Spielplan)
 ];
 
 // Feste Farbpalette für die individuelle Spieler-Einfärbung im Kalender.
@@ -2615,6 +2616,7 @@ const SPIELPLAN_PALETTE = ['#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#a855f7'
 const PLAYER_COLOR_OVERRIDES = {
   'linus güther': '#E2001A',   // Union-Rot
   'malte brumm': '#005CA9',    // Hertha-Blau
+  'luca felix': '#E1000F',     // Frankfurt-Rot
 };
 
 function getPlayerColor(player) {
@@ -2702,6 +2704,15 @@ const MANUAL_MATCHES = {
     { date: '2026-08-15', time: '11:00', competition: 'U17 Bundesliga', home: 'Eimsbütteler TV', away: 'Hertha BSC', isHome: false },
     { date: '2026-08-23', time: '11:00', competition: 'U17 Bundesliga', home: 'Hertha BSC', away: 'Holstein Kiel', isHome: true },
     { date: '2026-08-30', time: '11:00', competition: 'U17 Bundesliga', home: 'Hamburger SV', away: 'Hertha BSC', isHome: false },
+  ],
+  'luca felix': [
+    { date: '2026-09-27', time: '13:00', competition: 'Hessenliga', home: 'SV Wehen Wiesbaden U16', away: 'Eintracht Frankfurt', isHome: false },
+    { date: '2026-10-03', time: '11:00', competition: 'Hessenliga', home: 'Eintracht Frankfurt', away: 'SG Rot-Weiss Ffm.', isHome: true },
+    { date: '2026-10-24', time: '13:30', competition: 'Hessenliga', home: 'KSV Hessen Kassel', away: 'Eintracht Frankfurt', isHome: false },
+    { date: '2026-10-31', time: '11:00', competition: 'Hessenliga', home: 'Eintracht Frankfurt', away: 'SF/BG Marburg', isHome: true },
+    { date: '2026-11-07', time: '11:00', competition: 'Hessenliga', home: 'FSV Frankfurt', away: 'Eintracht Frankfurt', isHome: false },
+    { date: '2026-11-22', time: '11:00', competition: 'Hessenliga', home: 'SV Rot-Weiss Walldorf', away: 'Eintracht Frankfurt', isHome: false },
+    { date: '2026-11-28', time: '13:00', competition: 'Hessenliga', home: 'Eintracht Frankfurt', away: 'SG Barockstadt Fulda-Lehnerz', isHome: true },
   ],
 };
 
