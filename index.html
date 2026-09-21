@@ -2051,10 +2051,29 @@ async function seedPlayersIfNeeded() {
 
 let firstPlayersSnapshotDone = false;
 
+// Mancher Import legt Spieler im Kurzformat an (name/position/birthYear) -
+// hier auf das Standardschema abbilden, damit nie Spieler ohne Namen auftauchen.
+const LEGACY_POS_MAP = {
+  torwart: 'TW', innenverteidiger: 'IV', linksverteidiger: 'LV', rechtsverteidiger: 'RV',
+  verteidiger: 'Abwehr', abwehr: 'Abwehr', mittelfeld: 'Mittelfeld', 'zentrales mittelfeld': 'ZM',
+  'defensives mittelfeld': 'DM', 'offensives mittelfeld': 'OM', fluegel: 'LA', 'flügel': 'LA',
+  stuermer: 'ST', 'stürmer': 'ST', mittelstuermer: 'ST', 'mittelstürmer': 'ST', angriff: 'Angriff',
+};
+function normalizeLegacyPlayer(p) {
+  if (!p.firstName && !p.lastName && p.name) {
+    const parts = String(p.name).trim().split(/\s+/);
+    p.firstName = parts.shift() || '';
+    p.lastName = parts.join(' ');
+  }
+  if (!p.pos && p.position) p.pos = LEGACY_POS_MAP[String(p.position).toLowerCase()] || p.position;
+  if (!p.birth && p.birthYear) p.birth = p.birthYear;
+  return p;
+}
+
 function subscribePlayers() {
   if (unsubscribePlayers) { unsubscribePlayers(); unsubscribePlayers = null; }
   unsubscribePlayers = fsOnSnapshot(fsCollection(db, 'players'), (snap) => {
-    players = snap.docs.map(d => ({ id: Number(d.id), ...d.data() }));
+    players = snap.docs.map(d => normalizeLegacyPlayer({ id: Number(d.id), ...d.data() }));
     renderStats();
     renderTable();
     ensureNationsForPlayers();
