@@ -26,6 +26,7 @@ NEWS_LOCALES = {
     'Argentinien': ('es-419', 'AR', 'AR:es-419'),
     'Brasilien': ('pt-BR', 'BR', 'BR:pt-419'),
     'USA': ('en-US', 'US', 'US:en'),
+    'Indien': ('en-IN', 'IN', 'IN:en'),
     'Türkei': ('tr', 'TR', 'TR:tr'),
     'Polen': ('pl', 'PL', 'PL:pl'),
     'Kroatien': ('hr', 'HR', 'HR:hr'),

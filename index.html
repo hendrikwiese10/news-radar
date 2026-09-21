@@ -2463,7 +2463,7 @@ function deletePlayer(id) {
 // News-Ausgabe findet "Fußball" praktisch nichts.
 const NEWS_SPORT_WORD = {
   Deutschland: 'Fußball', Österreich: 'Fußball', Schweiz: 'Fußball',
-  England: 'football', Schottland: 'football', Wales: 'football', Irland: 'football', USA: 'soccer',
+  England: 'football', Indien: 'football', Schottland: 'football', Wales: 'football', Irland: 'football', USA: 'soccer',
   Frankreich: 'football', Italien: 'calcio',
   Spanien: 'fútbol', Argentinien: 'fútbol',
   Portugal: 'futebol', Brasilien: 'futebol',
@@ -2476,7 +2476,8 @@ const NEWS_SPORT_WORD = {
 // nicht auseinanderlaufen können.
 function buildNewsRequest(player) {
   const sportWord = NEWS_SPORT_WORD[player.nation] || 'Fußball';
-  const query = player.searchTerm || [player.firstName, player.lastName].filter(Boolean).join(' ') + ' ' + sportWord;
+  const fullName = [player.firstName, player.lastName].filter(Boolean).join(' ');
+  const query = player.searchTerm || `"${fullName}" ${sportWord}`;
   return { query, nation: player.nation || '' };
 }
 
@@ -2503,7 +2504,7 @@ async function openNewsDrawer(id) {
 
   document.getElementById('drawerTitle').textContent = fullName;
   document.getElementById('drawerSubtitle').textContent = 'Letzte 24 Stunden';
-  const query = player.searchTerm || [player.firstName, player.lastName].filter(Boolean).join(' ') + ' Fußball';
+  const query = player.searchTerm || `"${fullName}" Fußball`;
   document.getElementById('drawerGoogleLink').href =
     `https://news.google.com/search?q=${encodeURIComponent(query)}&hl=de`;
 
