@@ -923,23 +923,6 @@
       padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
     }
-    .aufgabenplan-days {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .aufgabenplan-day-block {
-      display: flex;
-      flex-direction: column;
-    }
-    .aufgabenplan-day-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .4px;
-      color: var(--muted);
-      margin-bottom: 8px;
-    }
     .aufgabenplan-list {
       display: flex;
       flex-direction: column;
@@ -985,20 +968,6 @@
       color: var(--muted);
       font-size: 13px;
       padding: 8px 0;
-    }
-    .aufgabenplan-add {
-      display: flex;
-      gap: 8px;
-    }
-    .aufgabenplan-add input {
-      flex: 1;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 13px;
-      padding: 8px 10px;
-      min-width: 0;
     }
     .aufgabenplan-item .task-person {
       flex-shrink: 0;
@@ -1506,22 +1475,7 @@
         <h2>✅ Aufgabenplan</h2>
       </div>
     </div>
-    <div class="aufgabenplan-columns">
-      <div class="aufgabenplan-person-column">
-        <div class="aufgabenplan-column-title" style="color:#ef4444">Für Hendrik</div>
-        <div class="aufgabenplan-days" id="aufgabenplanDaysHendrik"></div>
-      </div>
-      <div class="aufgabenplan-person-column">
-        <div class="aufgabenplan-column-title" style="color:#eab308">Für Michel</div>
-        <div class="aufgabenplan-days" id="aufgabenplanDaysMichel"></div>
-      </div>
-      <div class="aufgabenplan-person-column">
-        <div class="aufgabenplan-column-title" style="color:#3b82f6">Für Liv</div>
-        <div class="aufgabenplan-days" id="aufgabenplanDaysLiv"></div>
-      </div>
-    </div>
-
-    <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border)">
+    <div>
       <div style="font-weight:700;font-size:14px;margin-bottom:12px">📝 Allgemeine Aufgaben</div>
       <form class="general-task-form" onsubmit="event.preventDefault(); addGeneralTask()">
         <input id="generalTaskInput" placeholder="Neue Aufgabe…" />
@@ -2085,7 +2039,6 @@ async function initFirebase() {
     await seedPlayersIfNeeded();
     subscribePlayers();
     subscribeMonatsplan();
-    subscribeTasks();
     subscribeGeneralTasks();
     await seedNetworkIfNeeded();
     subscribeNetwork();
@@ -2359,7 +2312,6 @@ function switchTab(tab) {
   } else if (tab === 'monatsplan') {
     renderMonatsplanCalendar();
   } else if (tab === 'aufgabenplan') {
-    renderAufgabenplan();
     renderGeneralTasks();
   } else if (tab === 'netzwerk') {
     renderNetwork();
@@ -3075,78 +3027,7 @@ function deleteMonatsplanEventConfirm(id) {
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
-// ─── AUFGABENPLAN (To-dos für Hendrik/Michel/Liv, je Wochentag) ─────────────
-const AUFGABEN_WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-
-let tasks = [];
-let unsubscribeTasks = null;
-
-function subscribeTasks() {
-  if (unsubscribeTasks) { unsubscribeTasks(); unsubscribeTasks = null; }
-  unsubscribeTasks = fsOnSnapshot(fsCollection(db, 'tasks'), (snap) => {
-    tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (document.getElementById('aufgabenplanView').style.display !== 'none') renderAufgabenplan();
-    if (activeTab === 'dashboard') loadDashboardTasksToday();
-  }, (err) => console.error('tasks listener error', err));
-}
-
-function renderAufgabenplan() {
-  renderAufgabenplanPerson('Hendrik', 'aufgabenplanDaysHendrik');
-  renderAufgabenplanPerson('Michel', 'aufgabenplanDaysMichel');
-  renderAufgabenplanPerson('Liv', 'aufgabenplanDaysLiv');
-}
-
-function renderAufgabenplanPerson(person, elementId) {
-  const el = document.getElementById(elementId);
-  el.innerHTML = AUFGABEN_WEEKDAYS.map((label, weekday) => {
-    const list = tasks
-      .filter(t => t.person === person && t.weekday === weekday)
-      .sort((a, b) => (a.done === b.done ? (a.createdAt || 0) - (b.createdAt || 0) : (a.done ? 1 : -1)));
-
-    const listHtml = list.length === 0
-      ? `<div class="aufgabenplan-empty">Keine Aufgaben</div>`
-      : list.map(t => `
-        <div class="aufgabenplan-item ${t.done ? 'done' : ''}">
-          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" />
-          <span class="task-text">${escHtml(t.title)}</span>
-          <button class="task-delete" onclick="deleteTask('${t.id}')" title="Löschen">✕</button>
-        </div>
-      `).join('');
-
-    const inputId = `aufgabenplanInput_${person}_${weekday}`;
-    return `
-      <div class="aufgabenplan-day-block">
-        <div class="aufgabenplan-day-title">${label}</div>
-        <div class="aufgabenplan-list">${listHtml}</div>
-        <form class="aufgabenplan-add" onsubmit="event.preventDefault(); addTask('${person}', ${weekday})">
-          <input id="${inputId}" placeholder="Neue Aufgabe…" />
-          <button class="btn btn-ghost btn-sm" type="submit">+</button>
-        </form>
-      </div>
-    `;
-  }).join('');
-}
-
-function addTask(person, weekday) {
-  const input = document.getElementById(`aufgabenplanInput_${person}_${weekday}`);
-  const title = input.value.trim();
-  if (!title) return;
-  fsAddDoc(fsCollection(db, 'tasks'), { person, weekday, title, done: false, createdAt: Date.now() })
-    .then(() => { input.value = ''; })
-    .catch(err => showToast('Fehler: ' + err.message, 'error'));
-}
-
-function toggleTask(id, done) {
-  fsUpdateDoc(fsDoc(db, 'tasks', id), { done })
-    .catch(err => showToast('Fehler: ' + err.message, 'error'));
-}
-
-function deleteTask(id) {
-  fsDeleteDoc(fsDoc(db, 'tasks', id))
-    .catch(err => showToast('Fehler: ' + err.message, 'error'));
-}
-
-// ─── ALLGEMEINE AUFGABEN (Bullet-Liste ohne Wochentag, mit Verantwortlichkeit) ──
+// ─── ALLGEMEINE AUFGABEN (Bullet-Liste, mit Verantwortlichkeit und Bis-Datum) ──
 let generalTasks = [];
 let unsubscribeGeneralTasks = null;
 
@@ -3155,6 +3036,7 @@ function subscribeGeneralTasks() {
   unsubscribeGeneralTasks = fsOnSnapshot(fsCollection(db, 'generalTasks'), (snap) => {
     generalTasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if (document.getElementById('aufgabenplanView').style.display !== 'none') renderGeneralTasks();
+    if (activeTab === 'dashboard') loadDashboardTasksToday();
   }, (err) => console.error('general tasks listener error', err));
 }
 
@@ -4532,25 +4414,20 @@ async function loadDashboard() {
   loadDashboardGeneralNews();
 }
 
-function todayWeekdayIndex() {
-  const jsDay = new Date().getDay(); // 0=So, 1=Mo, ... 6=Sa
-  return jsDay === 0 ? 6 : jsDay - 1; // 0=Mo ... 6=So, passend zu AUFGABEN_WEEKDAYS
-}
-
 function loadDashboardTasksToday() {
   const el = document.getElementById('dashboardTasksToday');
   const countEl = document.getElementById('dashboardTasksTodayCount');
-  const weekday = todayWeekdayIndex();
-  const items = tasks
-    .filter(t => t.weekday === weekday)
-    .sort((a, b) => (a.done === b.done ? (a.createdAt || 0) - (b.createdAt || 0) : (a.done ? 1 : -1)));
+  const todayStr = localDateStr(new Date());
+  const items = generalTasks
+    .filter(t => !t.done && t.dueDate && t.dueDate <= todayStr)
+    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || '') || (a.createdAt || 0) - (b.createdAt || 0));
 
   countEl.textContent = items.length;
   el.innerHTML = items.length === 0
-    ? `<div class="dashboard-empty">Für heute (${AUFGABEN_WEEKDAYS[weekday]}) sind keine Aufgaben im Aufgabenplan eingetragen</div>`
+    ? `<div class="dashboard-empty">Keine fälligen Aufgaben für heute</div>`
     : items.map(t => `
       <div class="aufgabenplan-item ${t.done ? 'done' : ''}" style="border-left:3px solid ${MONATSPLAN_COLORS[t.person] || 'var(--muted)'}">
-        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}', this.checked)" />
+        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleGeneralTask('${t.id}', this.checked)" />
         <span class="task-text">${escHtml(t.title)}</span>
         <span style="font-size:10px;color:${MONATSPLAN_COLORS[t.person] || 'var(--muted)'};font-weight:700;margin-left:auto;flex-shrink:0;">${escHtml(t.person)}</span>
       </div>

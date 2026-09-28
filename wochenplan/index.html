@@ -168,13 +168,11 @@
     font-family: inherit;
   }
   .post-row { display: flex; gap: 6px; flex-wrap: wrap; }
-  .post-row input, .post-row select {
+  .post-row input {
     background: var(--surface3); border: 1px solid var(--border); border-radius: 6px;
     color: var(--text); font-size: 12px; padding: 5px 6px; font-family: inherit;
   }
-  .post-row input[type="time"] { width: 90px; }
   .post-row input.owner { flex: 1; min-width: 80px; }
-  .post-row select { flex: 1; min-width: 90px; }
   .post-footer { display: flex; justify-content: space-between; align-items: center; }
   .post-check-btn {
     width: 24px; height: 24px; border-radius: 50%;
@@ -185,11 +183,6 @@
   }
   .post-check-btn:hover { border-color: var(--green); }
   .post-check-btn.checked { background: var(--green); border-color: var(--green); color: #fff; }
-
-  select.status-idee, .status-pill.status-idee { color: var(--muted); }
-  select.status-in-arbeit, .status-pill.status-in-arbeit { color: var(--accent2); }
-  select.status-fertig, .status-pill.status-fertig { color: var(--accent); }
-  select.status-gepostet, .status-pill.status-gepostet { color: var(--green); }
 
   /* MONATSPLAN */
   .monat-list { display: flex; flex-direction: column; gap: 8px; max-width: 700px; }
@@ -377,7 +370,6 @@ const PLATFORMS = [
   { id: 'Instagram', label: 'Instagram', badgeClass: 'badge-ig', badgeText: 'IG' },
   { id: 'TikTok', label: 'TikTok', badgeClass: 'badge-tt', badgeText: '♪' },
 ];
-const STATUSES = ['Idee', 'In Arbeit', 'Fertig', 'Gepostet'];
 
 // Content-Buckets aus dem FutureBallers-Saisonplan (Startbefüllung, danach in Firestore editierbar)
 const BUCKET_COLORS = ['#1fa8a0', '#e0564f', '#e8912d', '#2e9e6b', '#3f7fd6', '#8e5cd9', '#d64f93'];
@@ -551,10 +543,6 @@ function reorderIfNeeded(container, desiredEls) {
   }
 }
 
-function statusClass(status) {
-  return 'status-' + status.toLowerCase().replace(/\s+/g, '-');
-}
-
 function buildPostCard(post) {
   const card = document.createElement('div');
   card.className = 'post-card' + (post.done ? ' done' : '');
@@ -581,31 +569,6 @@ function buildPostCard(post) {
     textTimer = setTimeout(() => updatePost(post.id, { text: textarea.value }), 500);
   });
   card.appendChild(textarea);
-
-  const row1 = document.createElement('div');
-  row1.className = 'post-row';
-
-  const timeInput = document.createElement('input');
-  timeInput.type = 'time';
-  timeInput.value = post.time || '';
-  timeInput.addEventListener('change', () => updatePost(post.id, { time: timeInput.value }));
-  row1.appendChild(timeInput);
-
-  const statusSelect = document.createElement('select');
-  statusSelect.className = statusClass(post.status || 'Idee');
-  STATUSES.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s; opt.textContent = s;
-    if ((post.status || 'Idee') === s) opt.selected = true;
-    statusSelect.appendChild(opt);
-  });
-  statusSelect.addEventListener('change', () => {
-    statusSelect.className = statusClass(statusSelect.value);
-    updatePost(post.id, { status: statusSelect.value });
-  });
-  row1.appendChild(statusSelect);
-
-  card.appendChild(row1);
 
   const row2 = document.createElement('div');
   row2.className = 'post-row';
@@ -647,7 +610,7 @@ function buildPostCard(post) {
   footer.appendChild(delBtn);
   card.appendChild(footer);
 
-  return { root: card, textarea, timeInput, statusSelect, ownerInput, checkBtn };
+  return { root: card, textarea, ownerInput, checkBtn };
 }
 
 function renderPosts(posts) {
@@ -695,15 +658,8 @@ function renderPosts(posts) {
       if (document.activeElement !== entry.textarea && entry.textarea.value !== (post.text || '')) {
         entry.textarea.value = post.text || '';
       }
-      if (document.activeElement !== entry.timeInput && entry.timeInput.value !== (post.time || '')) {
-        entry.timeInput.value = post.time || '';
-      }
       if (document.activeElement !== entry.ownerInput && entry.ownerInput.value !== (post.owner || '')) {
         entry.ownerInput.value = post.owner || '';
-      }
-      if (document.activeElement !== entry.statusSelect && entry.statusSelect.value !== (post.status || 'Idee')) {
-        entry.statusSelect.value = post.status || 'Idee';
-        entry.statusSelect.className = statusClass(post.status || 'Idee');
       }
       const isDone = !!post.done;
       if (entry.root.classList.contains('done') !== isDone) {
