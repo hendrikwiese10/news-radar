@@ -1009,6 +1009,15 @@
       padding: 3px 7px;
       border-radius: 999px;
     }
+    .aufgabenplan-item .task-due {
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .aufgabenplan-item .task-due.overdue {
+      color: var(--red, #ef4444);
+      font-weight: 700;
+    }
     .general-task-form {
       display: flex;
       gap: 8px;
@@ -1033,6 +1042,12 @@
       color: var(--text);
       font-size: 13px;
       padding: 8px 10px;
+    }
+    .general-task-form input#generalTaskDue {
+      flex: none;
+      min-width: 0;
+      width: 150px;
+      color-scheme: dark;
     }
     #generalTaskList { display: flex; flex-direction: column; gap: 6px; max-width: 560px; }
 
@@ -1515,6 +1530,7 @@
           <option value="Michel">Michel</option>
           <option value="Liv">Liv</option>
         </select>
+        <input id="generalTaskDue" type="date" title="Bis wann?" />
         <button class="btn btn-primary btn-sm" type="submit">+ Hinzufügen</button>
       </form>
       <div id="generalTaskList"></div>
@@ -3145,27 +3161,40 @@ function subscribeGeneralTasks() {
 function renderGeneralTasks() {
   const el = document.getElementById('generalTaskList');
   if (!el) return;
-  const list = generalTasks.slice().sort((a, b) => (a.done === b.done ? (a.createdAt || 0) - (b.createdAt || 0) : (a.done ? 1 : -1)));
+  const todayStr = localDateStr(new Date());
+  const list = generalTasks.slice().sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    if ((a.dueDate || '') !== (b.dueDate || '')) return (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : 1;
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  });
 
   el.innerHTML = list.length === 0
     ? `<div class="aufgabenplan-empty">Keine Aufgaben</div>`
-    : list.map(t => `
+    : list.map(t => {
+      const overdue = t.dueDate && !t.done && t.dueDate < todayStr;
+      const dueLabel = t.dueDate
+        ? `<span class="task-due ${overdue ? 'overdue' : ''}">Bis ${new Date(t.dueDate + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>`
+        : '';
+      return `
       <div class="aufgabenplan-item ${t.done ? 'done' : ''}">
         <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleGeneralTask('${t.id}', this.checked)" />
         <span class="task-text">${escHtml(t.title)}</span>
+        ${dueLabel}
         <span class="task-person" style="background:${MONATSPLAN_COLORS[t.person] || 'var(--muted)'}22;color:${MONATSPLAN_COLORS[t.person] || 'var(--muted)'}">${escHtml(t.person)}</span>
         <button class="task-delete" onclick="deleteGeneralTask('${t.id}')" title="Löschen">✕</button>
       </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function addGeneralTask() {
   const input = document.getElementById('generalTaskInput');
   const person = document.getElementById('generalTaskPerson').value;
+  const dueInput = document.getElementById('generalTaskDue');
   const title = input.value.trim();
   if (!title) return;
-  fsAddDoc(fsCollection(db, 'generalTasks'), { title, person, done: false, createdAt: Date.now() })
-    .then(() => { input.value = ''; input.focus(); })
+  fsAddDoc(fsCollection(db, 'generalTasks'), { title, person, dueDate: dueInput.value || null, done: false, createdAt: Date.now() })
+    .then(() => { input.value = ''; dueInput.value = ''; input.focus(); })
     .catch(err => showToast('Fehler: ' + err.message, 'error'));
 }
 
